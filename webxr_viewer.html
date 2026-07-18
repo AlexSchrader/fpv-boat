@@ -114,6 +114,10 @@ let lastPingMs = null;
 // throttle: -1 (full astern) .. +1 (full ahead), from the LEFT thumbstick Y (forward = up)
 // reverse: toggled by tapping X; inverts throttle direction on the wire
 const control = { throttle: 0, steer: 0, reverse: false, connected: false };
+// Live controller diagnostics, drawn onto the HUD canvas (DOM overlays are
+// invisible inside VR). Shows raw axes + which button indices are pressed, so a
+// button/axis index mismatch on the Quest is obvious. Remove once verified.
+let ctlDebug = 'no controllers';
 
 async function pollTelemetry() {
   const t0 = performance.now();
@@ -208,7 +212,27 @@ function readPads() {
   };
 }
 
+// Build a compact raw dump of every connected controller for the HUD readout.
+function buildCtlDebug() {
+  const session = renderer.xr.getSession && renderer.xr.getSession();
+  const fmtPad = (tag, g) => {
+    const axes = [...g.axes].map(a => a.toFixed(2)).join(',');
+    const btns = g.buttons.map((b, i) => b.pressed ? i : -1).filter(i => i >= 0);
+    return `${tag} ax[${axes}] btn[${btns.join(',') || '-'}]`;
+  };
+  if (session) {
+    const rows = [];
+    for (const src of session.inputSources) {
+      if (src.gamepad) rows.push(fmtPad((src.handedness || '?')[0].toUpperCase(), src.gamepad));
+    }
+    return rows.length ? rows.join('   ') : 'in VR, no gamepads';
+  }
+  const gp = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find(p => p);
+  return gp ? fmtPad('GP', gp) : 'no controllers';
+}
+
 function pollControllers(nowMs) {
+  ctlDebug = buildCtlDebug();
   const pad = readPads();
   if (!pad) { control.connected = false; control.throttle = 0; control.steer = 0; return; }
   control.connected = true;
@@ -386,6 +410,18 @@ function drawHud() {
             control.reverse ? 'THROTTLE (REV)' : 'THROTTLE');
   drawGauge(W - 420, H - 200, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER');
 
+  // ---- controller diagnostics (top-left, visible in VR) ----
+  hctx.font = '600 20px monospace';
+  hctx.fillStyle = control.connected ? CYAN : GHOST;
+  hctx.fillText(ctlDebug, 24, 44);
+  hctx.font = '600 16px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText(
+    `thr ${control.throttle.toFixed(2)}  steer ${control.steer.toFixed(2)}  ` +
+    `rev ${control.reverse ? 'ON' : 'off'}  rec ${telemetry.recording ? 'ON' : 'off'}`,
+    24, 68
+  );
+
   hudTexture.needsUpdate = true;
 }
 
@@ -394,11 +430,13 @@ if (document.fonts && document.fonts.ready) {
 }
 drawHud();
 
+let lastHudMs = 0;
 renderer.setAnimationLoop(() => {
   updateVideoTexture();
   const nowMs = performance.now();
   pollControllers(nowMs);
   sendControl(nowMs);
+  if (nowMs - lastHudMs > 66) { lastHudMs = nowMs; drawHud(); }  // ~15 Hz live HUD
   if (renderer.xr.isPresenting) {
     const xrCamera = renderer.xr.getCamera(camera);
     headLockGroup.position.copy(xrCamera.position);
