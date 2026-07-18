@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FPV Boat Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; overflow:hidden; background:#000; }
+  #enterVR {
+    position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+    z-index:10; padding:14px 28px; font-family:sans-serif; font-size:16px;
+    background:#111; color:#00e5ff; border:1px solid #00e5ff; border-radius:6px;
+  }
+  #debug {
+    position:absolute; top:10px; left:10px; z-index:10;
+    color:#00e5ff; font-family:monospace; font-size:12px;
+    background:rgba(0,0,0,0.6); padding:8px; max-width:80vw;
+  }
+</style>
+</head>
+<body>
+<button id="enterVR">Enter VR</button>
+<div id="debug">status: loaded</div>
+<video id="stream" autoplay playsinline muted style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></video>
+<canvas id="frameCanvas" width="1280" height="720" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
+<canvas id="hudCanvas" width="1280" height="720" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"></canvas>
+<script type="module">
+import * as THREE from '/three.module.js';
+
+const debugEl = document.getElementById('debug');
+function log(msg) { debugEl.textContent = 'status: ' + msg; console.log(msg); }
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local');
+document.body.appendChild(renderer.domElement);
+
+const videoEl = document.getElementById('stream');
+const canvasEl = document.getElementById('frameCanvas');
+const ctx = canvasEl.getContext('2d');
+const videoTexture = new THREE.CanvasTexture(canvasEl);
+videoTexture.minFilter = THREE.LinearFilter;
+
+const planeGeo = new THREE.PlaneGeometry(3.6, 2.6, 1, 1);
+const planeMat = new THREE.MeshBasicMaterial({ map: videoTexture, depthTest: false, depthWrite: false });
+const plane = new THREE.Mesh(planeGeo, planeMat);
+plane.position.set(0, 0, -1.8);
+plane.renderOrder = 0;
+
+const hudCanvasEl = document.getElementById('hudCanvas');
+const hctx = hudCanvasEl.getContext('2d');
+const hudTexture = new THREE.CanvasTexture(hudCanvasEl);
+hudTexture.minFilter = THREE.LinearFilter;
+
+const hudGeo = new THREE.PlaneGeometry(3.6, 2.6, 1, 1);
+const hudMat = new THREE.MeshBasicMaterial({ map: hudTexture, transparent: true, depthTest: false, depthWrite: false });
+const hudPlane = new THREE.Mesh(hudGeo, hudMat);
+hudPlane.position.set(0, 0, -1.7);
+hudPlane.renderOrder = 1;
+
+const headLockGroup = new THREE.Group();
+headLockGroup.add(plane);
+headLockGroup.add(hudPlane);
+scene.add(headLockGroup);
+
+// ---- WebRTC connection to the Pi ----
+async function startWebRTC() {
+  const pc = new RTCPeerConnection();
+
+  pc.addTransceiver('video', { direction: 'recvonly' });
+
+  pc.ontrack = (event) => {
+    log('video track received');
+    videoEl.srcObject = event.streams[0];
+  };
+
+  pc.onconnectionstatechange = () => {
+    log('webrtc: ' + pc.connectionState);
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  const res = await fetch('/offer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+  });
+  const answer = await res.json();
+  await pc.setRemoteDescription(answer);
+}
+startWebRTC().catch(err => log('WebRTC ERROR: ' + err.message));
+
+function updateVideoTexture() {
+  try {
+    if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+      ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+      videoTexture.needsUpdate = true;
+    }
+  } catch (e) { /* skip a bad frame */ }
+}
+
+let telemetry = { recording: false, file: null, storage_free_gb: null, storage_total_gb: null };
+let linkState = 'good';
+let lastPingMs = null;
+
+async function pollTelemetry() {
+  const t0 = performance.now();
+  try {
+    const res = await fetch('/telemetry', { cache: 'no-store' });
+    const data = await res.json();
+    const rtt = performance.now() - t0;
+    lastPingMs = Math.round(rtt);
+    linkState = rtt < 300 ? 'good' : 'degraded';
+    telemetry = data;
+  } catch (err) {
+    linkState = 'lost';
+  }
+  drawHud();
+}
+setInterval(pollTelemetry, 1000);
+pollTelemetry();
+
+const CYAN = '#00e5ff';
+const ORANGE = '#ff7a1a';
+const WHITE = '#eef4f5';
+const GHOST = '#3a4650';
+const GHOST_LABEL = 'rgba(255,255,255,0.35)';
+const LABEL_COLOR = 'rgba(255,255,255,0.4)';
+
+function drawGauge(cx, cy, radius, value01, ghost, label) {
+  hctx.beginPath();
+  hctx.arc(cx, cy, radius, Math.PI * 0.82, Math.PI * 0.18, false);
+  hctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  hctx.lineWidth = 8;
+  hctx.lineCap = 'round';
+  hctx.stroke();
+
+  const startA = Math.PI * 0.82;
+  const endA = Math.PI * 0.18 + Math.PI * 2;
+  const sweep = (endA - startA) * (ghost ? 1 : value01);
+  hctx.beginPath();
+  hctx.arc(cx, cy, radius, startA, startA + sweep, false);
+  hctx.strokeStyle = ghost ? GHOST : CYAN;
+  hctx.lineWidth = 8;
+  hctx.stroke();
+
+  hctx.textAlign = 'center';
+  hctx.font = '700 26px Orbitron, sans-serif';
+  hctx.fillStyle = ghost ? GHOST : CYAN;
+  hctx.fillText(ghost ? '--%' : Math.round(value01*100) + '%', cx, cy - 6);
+
+  hctx.font = '600 14px Rajdhani, sans-serif';
+  hctx.fillStyle = WHITE;
+  hctx.fillText(label, cx, cy + radius * 0.55);
+  hctx.textAlign = 'left';
+}
+
+function panel(x, y, w, h) {
+  hctx.fillStyle = 'rgba(30,30,30,0.65)';
+  hctx.fillRect(x, y, w, h);
+}
+
+function roundedPanel(x, y, w, h, r) {
+  hctx.fillStyle = 'rgba(20,24,26,0.72)';
+  hctx.strokeStyle = 'rgba(0,229,255,0.25)';
+  hctx.lineWidth = 1.5;
+  hctx.beginPath();
+  hctx.moveTo(x + r, y);
+  hctx.arcTo(x + w, y, x + w, y + h, r);
+  hctx.arcTo(x + w, y + h, x, y + h, r);
+  hctx.arcTo(x, y + h, x, y, r);
+  hctx.arcTo(x, y, x + w, y, r);
+  hctx.closePath();
+  hctx.fill();
+  hctx.stroke();
+}
+
+function drawHud() {
+  hctx.clearRect(0, 0, hudCanvasEl.width, hudCanvasEl.height);
+  hctx.textBaseline = 'alphabetic';
+  const W = hudCanvasEl.width, H = hudCanvasEl.height;
+
+  // ---- unified top card ----
+  const cardW = 460, cardH = 150;
+  const cardX = W/2 - cardW/2, cardY = 95;
+  roundedPanel(cardX, cardY, cardW, cardH, 14);
+
+  // divider line, horizontal (between rows) and vertical (between columns)
+  hctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  hctx.lineWidth = 1;
+  hctx.beginPath();
+  hctx.moveTo(cardX + 20, cardY + cardH/2);
+  hctx.lineTo(cardX + cardW - 20, cardY + cardH/2);
+  hctx.moveTo(cardX + cardW/2, cardY + 16);
+  hctx.lineTo(cardX + cardW/2, cardY + cardH - 16);
+  hctx.stroke();
+
+  const colL = cardX + 26;
+  const colR = cardX + cardW/2 + 26;
+  const rowTopLabelY = cardY + 28;
+  const rowTopValY = cardY + 55;
+  const rowBotLabelY = cardY + cardH/2 + 26;
+  const rowBotValY = cardY + cardH/2 + 53;
+
+  // --- LINK (top-left) ---
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('LINK', colL, rowTopLabelY);
+
+  const barCount = 4, barGap = 8, barW = 5;
+  let activeBars = 0;
+  if (linkState === 'good') {
+    activeBars = lastPingMs !== null ? (lastPingMs < 60 ? 4 : lastPingMs < 120 ? 3 : 2) : 0;
+  } else if (linkState === 'degraded') {
+    activeBars = 1;
+  }
+  for (let i = 0; i < barCount; i++) {
+    const bh = 7 + i * 5;
+    const bx = colL + i * (barW + barGap);
+    const by = rowTopValY - bh;
+    hctx.fillStyle = i < activeBars ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
+    hctx.fillRect(bx, by, barW, bh);
+  }
+  hctx.font = '600 13px Rajdhani, sans-serif';
+  hctx.fillStyle = WHITE;
+  hctx.fillText(lastPingMs !== null ? lastPingMs + 'ms' : '--', colL + 4 * (barW + barGap) + 6, rowTopValY);
+
+  // --- BATTERY (top-right) ---
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('BATTERY', colR, rowTopLabelY);
+  hctx.font = '600 18px Orbitron, sans-serif';
+  hctx.fillStyle = GHOST;
+  hctx.fillText('--%', colR, rowTopValY + 4);
+
+  // --- REC (bottom-left) ---
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('REC', colL + 14, rowBotLabelY);
+  hctx.fillStyle = telemetry.recording ? ORANGE : 'rgba(255,255,255,0.15)';
+  hctx.beginPath();
+  hctx.arc(colL + 4, rowBotLabelY - 4, 5, 0, Math.PI*2);
+  hctx.fill();
+  hctx.font = '600 16px Orbitron, sans-serif';
+  hctx.fillStyle = telemetry.recording ? ORANGE : WHITE;
+  hctx.fillText(telemetry.recording ? 'ON AIR' : 'OFF', colL, rowBotValY);
+
+  // --- STORAGE (bottom-right) ---
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('STORAGE', colR, rowBotLabelY);
+
+  const usedPct = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
+    ? Math.max(0, Math.min(1, 1 - (telemetry.storage_free_gb / telemetry.storage_total_gb)))
+    : 0;
+  const sbarW = 90, sbarH = 5;
+  hctx.fillStyle = 'rgba(255,255,255,0.12)';
+  hctx.fillRect(colR, rowBotValY - 12, sbarW, sbarH);
+  hctx.fillStyle = CYAN;
+  hctx.fillRect(colR, rowBotValY - 12, sbarW * usedPct, sbarH);
+
+  const usedGb = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
+    ? Math.round(telemetry.storage_total_gb - telemetry.storage_free_gb)
+    : '--';
+  const totalGb = telemetry.storage_total_gb !== null ? Math.round(telemetry.storage_total_gb) : 128;
+  hctx.font = '600 13px Rajdhani, sans-serif';
+  hctx.fillStyle = WHITE;
+  hctx.fillText(usedGb + '/' + totalGb + 'GB', colR, rowBotValY + 8);
+
+  drawGauge(420, H - 200, 70, 0, true, 'THROTTLE');
+  drawGauge(W - 420, H - 200, 70, 0, true, 'STEER');
+
+  hudTexture.needsUpdate = true;
+}hudTexture.needsUpdate = true;
+}
+
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => drawHud());
+}
+drawHud();
+
+renderer.setAnimationLoop(() => {
+  updateVideoTexture();
+  if (renderer.xr.isPresenting) {
+    const xrCamera = renderer.xr.getCamera(camera);
+    headLockGroup.position.copy(xrCamera.position);
+    headLockGroup.quaternion.copy(xrCamera.quaternion);
+  }
+  renderer.render(scene, camera);
+});
+
+document.getElementById('enterVR').addEventListener('click', async () => {
+  try {
+    if (!navigator.xr) { log('navigator.xr not available'); return; }
+    const supported = await navigator.xr.isSessionSupported('immersive-vr');
+    log('immersive-vr supported: ' + supported);
+    if (!supported) return;
+    const session = await navigator.xr.requestSession('immersive-vr');
+    log('session started');
+    session.addEventListener('end', () => log('session ended'));
+    await renderer.xr.setSession(session);
+    log('in VR');
+  } catch (err) {
+    log('ERROR: ' + err.message);
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
