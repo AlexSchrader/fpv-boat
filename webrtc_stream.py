@@ -108,7 +108,36 @@ async def three_js(request):
     return web.FileResponse(os.path.expanduser("~/three.module.js"),
                              headers={"Content-Type": "application/javascript"})
 
-latest_control = {"throttle": 0.0, "steer": 0.0}
+latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
+
+# ---- hardware actuation (throttle ESC + steering servo) ----
+# Optional: the server still runs (streaming/recording) if GPIO libs are missing.
+# For stable ESC/servo pulses use the pigpio pin factory:
+#     GPIOZERO_PIN_FACTORY=pigpio python3 webrtc_stream.py   (with `sudo pigpiod` running)
+THROTTLE_PIN = 12   # BCM pin to the ESC signal wire
+STEER_PIN = 13      # BCM pin to the steering servo signal wire
+try:
+    from gpiozero import Servo
+    throttle_out = Servo(THROTTLE_PIN)
+    steer_out = Servo(STEER_PIN)
+    HARDWARE = True
+except Exception as e:
+    throttle_out = steer_out = None
+    HARDWARE = False
+    print(f"[control] hardware actuation disabled ({e}); running in software-only mode")
+
+def _clamp(v):
+    return max(-1.0, min(1.0, v))
+
+def apply_control(throttle, steer):
+    """Drive the ESC/servo. throttle/steer are -1..1; reverse is already applied on the wire."""
+    if not HARDWARE:
+        return
+    try:
+        throttle_out.value = _clamp(throttle)
+        steer_out.value = _clamp(steer)
+    except Exception:
+        pass
 
 async def control_ws(request):
     ws = web.WebSocketResponse()
@@ -119,8 +148,12 @@ async def control_ws(request):
                 data = json.loads(msg.data)
                 latest_control["throttle"] = float(data.get("throttle", 0.0))
                 latest_control["steer"] = float(data.get("steer", 0.0))
+                latest_control["reverse"] = bool(data.get("reverse", False))
+                apply_control(latest_control["throttle"], latest_control["steer"])
             except Exception:
                 pass
+    # stop the motor if the control link drops
+    apply_control(0.0, 0.0)
     return ws
 
 async def control_status(request):

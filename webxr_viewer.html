@@ -109,6 +109,12 @@ let telemetry = { recording: false, file: null, storage_free_gb: null, storage_t
 let linkState = 'good';
 let lastPingMs = null;
 
+// ---- controller state ----
+// steer: -1 (full left) .. +1 (full right), from the RIGHT thumbstick X
+// throttle: -1 (full astern) .. +1 (full ahead), from the LEFT thumbstick Y (forward = up)
+// reverse: toggled by tapping X; inverts throttle direction on the wire
+const control = { throttle: 0, steer: 0, reverse: false, connected: false };
+
 async function pollTelemetry() {
   const t0 = performance.now();
   try {
@@ -125,6 +131,108 @@ async function pollTelemetry() {
 }
 setInterval(pollTelemetry, 1000);
 pollTelemetry();
+
+// ---- control link (throttle/steer/reverse -> Pi) ----
+let controlWs = null;
+function connectControlWs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  try {
+    controlWs = new WebSocket(`${proto}://${location.host}/ws/control`);
+  } catch (e) { setTimeout(connectControlWs, 1000); return; }
+  controlWs.onclose = () => { controlWs = null; setTimeout(connectControlWs, 1000); };
+  controlWs.onerror = () => { try { controlWs.close(); } catch (e) {} };
+}
+connectControlWs();
+
+let lastSendMs = 0;
+function sendControl(nowMs) {
+  if (!controlWs || controlWs.readyState !== WebSocket.OPEN) return;
+  if (nowMs - lastSendMs < 50) return;   // cap at ~20 Hz
+  lastSendMs = nowMs;
+  // apply reverse on the wire so the Pi stays dumb: forward stick + reverse = astern
+  const effThrottle = control.reverse ? -control.throttle : control.throttle;
+  try {
+    controlWs.send(JSON.stringify({
+      throttle: effThrottle,
+      steer: control.steer,
+      reverse: control.reverse
+    }));
+  } catch (e) {}
+}
+
+// ---- recording control (A button) ----
+function startRecording() { fetch('/record/start').catch(() => {}); }
+function stopRecording()  { fetch('/record/stop').catch(() => {}); }
+
+// ---- controller reading ----
+// Mapping (Quest / xr-standard):
+//   RIGHT thumbstick X (axes[2]) -> steer
+//   LEFT  thumbstick Y (axes[3]) -> throttle (negated so pushing up = ahead)
+//   RIGHT button[4] = A -> double-tap start record / single-tap stop record
+//   LEFT  button[4] = X -> tap toggles reverse
+//   Reserved (ignored): B (right[5]), Y (left[5]), triggers L/R (buttons[0]/[1])
+const DEADZONE = 0.08;
+const DOUBLE_TAP_MS = 300;
+let aPrev = false, aStopTimer = null;
+let xPrev = false;
+
+function dz(v) { return Math.abs(v) < DEADZONE ? 0 : v; }
+
+function readPads() {
+  // Prefer WebXR input sources while presenting; fall back to the Gamepad API on desktop.
+  const session = renderer.xr.getSession && renderer.xr.getSession();
+  if (session) {
+    let left = null, right = null;
+    for (const src of session.inputSources) {
+      if (!src.gamepad) continue;
+      if (src.handedness === 'left') left = src.gamepad;
+      else if (src.handedness === 'right') right = src.gamepad;
+    }
+    if (!left && !right) return null;
+    return {
+      steer:    right && right.axes.length > 2 ? dz(right.axes[2]) : 0,
+      throttle: left  && left.axes.length  > 3 ? dz(-left.axes[3]) : 0,
+      a: !!(right && right.buttons[4] && right.buttons[4].pressed),
+      x: !!(left  && left.buttons[4]  && left.buttons[4].pressed),
+    };
+  }
+  // Desktop fallback: standard gamepad mapping (left stick 0/1, right stick 2/3, A=0, X=2)
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const gp = pads && [...pads].find(p => p);
+  if (!gp) return null;
+  return {
+    steer:    dz(gp.axes[2] || 0),
+    throttle: dz(-(gp.axes[1] || 0)),
+    a: !!(gp.buttons[0] && gp.buttons[0].pressed),
+    x: !!(gp.buttons[2] && gp.buttons[2].pressed),
+  };
+}
+
+function pollControllers(nowMs) {
+  const pad = readPads();
+  if (!pad) { control.connected = false; control.throttle = 0; control.steer = 0; return; }
+  control.connected = true;
+  control.throttle = pad.throttle;
+  control.steer = pad.steer;
+
+  // A: rising edge. Double-tap within window -> start; a lone tap -> stop.
+  if (pad.a && !aPrev) {
+    if (aStopTimer !== null) {
+      // second tap inside the window -> double-tap -> START, cancel pending stop
+      clearTimeout(aStopTimer);
+      aStopTimer = null;
+      startRecording();
+    } else {
+      // first tap -> tentatively a single tap (STOP) unless a second arrives
+      aStopTimer = setTimeout(() => { aStopTimer = null; stopRecording(); }, DOUBLE_TAP_MS);
+    }
+  }
+  aPrev = pad.a;
+
+  // X: rising edge toggles reverse
+  if (pad.x && !xPrev) control.reverse = !control.reverse;
+  xPrev = pad.x;
+}
 
 const CYAN = '#00e5ff';
 const ORANGE = '#ff7a1a';
@@ -273,11 +381,12 @@ function drawHud() {
   hctx.fillStyle = WHITE;
   hctx.fillText(usedGb + '/' + totalGb + 'GB', colR, rowBotValY + 8);
 
-  drawGauge(420, H - 200, 70, 0, true, 'THROTTLE');
-  drawGauge(W - 420, H - 200, 70, 0, true, 'STEER');
+  const ghostCtl = !control.connected;
+  drawGauge(420, H - 200, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
+            control.reverse ? 'THROTTLE (REV)' : 'THROTTLE');
+  drawGauge(W - 420, H - 200, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER');
 
   hudTexture.needsUpdate = true;
-}hudTexture.needsUpdate = true;
 }
 
 if (document.fonts && document.fonts.ready) {
@@ -287,6 +396,9 @@ drawHud();
 
 renderer.setAnimationLoop(() => {
   updateVideoTexture();
+  const nowMs = performance.now();
+  pollControllers(nowMs);
+  sendControl(nowMs);
   if (renderer.xr.isPresenting) {
     const xrCamera = renderer.xr.getCamera(camera);
     headLockGroup.position.copy(xrCamera.position);
