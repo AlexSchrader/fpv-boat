@@ -110,36 +110,11 @@ async def three_js(request):
 
 latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
 
-# ---- hardware actuation (throttle ESC + steering servo) ----
-# Optional: the server still runs (streaming/recording) if GPIO libs are missing.
-# For stable ESC/servo pulses use the pigpio pin factory:
-#     GPIOZERO_PIN_FACTORY=pigpio python3 webrtc_stream.py   (with `sudo pigpiod` running)
-THROTTLE_PIN = 12   # BCM 12 = physical pin 32 (PWM0) -> ESC signal wire
-STEER_PIN = 13      # BCM 13 = physical pin 33 (PWM1) -> steering servo signal wire
-# Common ground: physical pin 34. Signal + GND only from the Pi; let the ESC's
-# BEC power the servo. See HARDWARE.md for the full wiring table.
-try:
-    from gpiozero import Servo
-    throttle_out = Servo(THROTTLE_PIN)
-    steer_out = Servo(STEER_PIN)
-    HARDWARE = True
-except Exception as e:
-    throttle_out = steer_out = None
-    HARDWARE = False
-    print(f"[control] hardware actuation disabled ({e}); running in software-only mode")
-
-def _clamp(v):
-    return max(-1.0, min(1.0, v))
-
-def apply_control(throttle, steer):
-    """Drive the ESC/servo. throttle/steer are -1..1; reverse is already applied on the wire."""
-    if not HARDWARE:
-        return
-    try:
-        throttle_out.value = _clamp(throttle)
-        steer_out.value = _clamp(steer)
-    except Exception:
-        pass
+# Differential-thrust motor driver (L298N). Kept in its own module so it can be
+# bench-tested independently; runs as a no-op if the GPIO libs aren't present, so
+# streaming/recording still work on a machine without the hardware wired up.
+from motor_control import MotorController
+motors = MotorController()
 
 async def control_ws(request):
     ws = web.WebSocketResponse()
@@ -151,11 +126,13 @@ async def control_ws(request):
                 latest_control["throttle"] = float(data.get("throttle", 0.0))
                 latest_control["steer"] = float(data.get("steer", 0.0))
                 latest_control["reverse"] = bool(data.get("reverse", False))
-                apply_control(latest_control["throttle"], latest_control["steer"])
+                # throttle already carries the reverse sign from the client;
+                # steering is differential, handled inside set_drive()
+                motors.set_drive(latest_control["throttle"], latest_control["steer"])
             except Exception:
                 pass
-    # stop the motor if the control link drops
-    apply_control(0.0, 0.0)
+    # stop the motors if the control link drops
+    motors.stop()
     return ws
 
 async def control_status(request):
