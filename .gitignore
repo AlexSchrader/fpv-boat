@@ -13,3 +13,5 @@
 .state/
 recordings/
 test.jpg
+__pycache__/
+*.pyc

@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import shutil
+import ssl
 from datetime import datetime
 
 from aiohttp import web
@@ -108,7 +109,13 @@ async def three_js(request):
     return web.FileResponse(os.path.expanduser("~/three.module.js"),
                              headers={"Content-Type": "application/javascript"})
 
-latest_control = {"throttle": 0.0, "steer": 0.0}
+latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
+
+# Differential-thrust motor driver (L298N). Kept in its own module so it can be
+# bench-tested independently; runs as a no-op if the GPIO libs aren't present, so
+# streaming/recording still work on a machine without the hardware wired up.
+from motor_control import MotorController
+motors = MotorController()
 
 async def control_ws(request):
     ws = web.WebSocketResponse()
@@ -119,8 +126,14 @@ async def control_ws(request):
                 data = json.loads(msg.data)
                 latest_control["throttle"] = float(data.get("throttle", 0.0))
                 latest_control["steer"] = float(data.get("steer", 0.0))
+                latest_control["reverse"] = bool(data.get("reverse", False))
+                # throttle already carries the reverse sign from the client;
+                # steering is differential, handled inside set_drive()
+                motors.set_drive(latest_control["throttle"], latest_control["steer"])
             except Exception:
                 pass
+    # stop the motors if the control link drops
+    motors.stop()
     return ws
 
 async def control_status(request):
@@ -137,4 +150,20 @@ app.router.add_get("/ws/control", control_ws)
 app.router.add_get("/control_status", control_status)
 
 if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=5000)
+    # WebXR needs a secure context: the Quest browser only exposes navigator.xr
+    # over HTTPS (or localhost), so VR + controller input require TLS. Drop a
+    # self-signed cert at ~/cert.pem + ~/key.pem to serve HTTPS; without it we
+    # fall back to plain HTTP (fine for desktop gamepad testing, but VR won't
+    # start). Generate one with:
+    #   openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+    #     -keyout ~/key.pem -out ~/cert.pem -subj "/CN=fpv-boat"
+    cert = os.path.expanduser("~/cert.pem")
+    key = os.path.expanduser("~/key.pem")
+    ssl_ctx = None
+    if os.path.exists(cert) and os.path.exists(key):
+        ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_ctx.load_cert_chain(cert, key)
+        print("[server] HTTPS on :5000 (self-signed cert)")
+    else:
+        print("[server] no ~/cert.pem; plain HTTP on :5000 — VR needs HTTPS")
+    web.run_app(app, host="0.0.0.0", port=5000, ssl_context=ssl_ctx)
