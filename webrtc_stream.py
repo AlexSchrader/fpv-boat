@@ -114,8 +114,10 @@ latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
 # Optional: the server still runs (streaming/recording) if GPIO libs are missing.
 # For stable ESC/servo pulses use the pigpio pin factory:
 #     GPIOZERO_PIN_FACTORY=pigpio python3 webrtc_stream.py   (with `sudo pigpiod` running)
-THROTTLE_PIN = 12   # BCM pin to the ESC signal wire
-STEER_PIN = 13      # BCM pin to the steering servo signal wire
+THROTTLE_PIN = 12   # BCM 12 = physical pin 32 (PWM0) -> ESC signal wire
+STEER_PIN = 13      # BCM 13 = physical pin 33 (PWM1) -> steering servo signal wire
+# Common ground: physical pin 34. Signal + GND only from the Pi; let the ESC's
+# BEC power the servo. See HARDWARE.md for the full wiring table.
 try:
     from gpiozero import Servo
     throttle_out = Servo(THROTTLE_PIN)
