@@ -242,8 +242,9 @@ const GHOST = '#3a4650';
 const GHOST_LABEL = 'rgba(255,255,255,0.35)';
 const LABEL_COLOR = 'rgba(255,255,255,0.4)';
 
-// revState: undefined = no badge (steer gauge); 'off' = greyed REV; 'on' = neon-orange REV
-function drawGauge(cx, cy, radius, value01, ghost, label, revState) {
+// revState: undefined = no badge; 'off' = greyed REV; 'on' = neon-orange REV
+// showLR: true = draw L/R markers at the arc ends (steer gauge)
+function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR) {
   hctx.beginPath();
   hctx.arc(cx, cy, radius, Math.PI * 0.82, Math.PI * 0.18, false);
   hctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -266,19 +267,29 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState) {
   const pctText = ghost ? '--%' : Math.round(value01*100) + '%';
   hctx.fillText(pctText, cx, cy - 6);
 
-  // REV badge to the right of the % (throttle gauge only)
+  // REV badge, centered between the % and the label (throttle gauge only) so a
+  // widening % can't push it over the arc
   if (revState) {
-    const pctW = hctx.measureText(pctText).width;   // measured while 26px font is active
-    hctx.textAlign = 'left';
-    hctx.font = '700 11px Orbitron, sans-serif';
+    hctx.textAlign = 'center';
+    hctx.font = '700 12px Orbitron, sans-serif';
     hctx.fillStyle = revState === 'on' ? ORANGE : GHOST;
-    hctx.fillText('REV', cx + pctW / 2 + 6, cy - 6);
+    hctx.fillText('REV', cx, cy + 14);
   }
 
   hctx.textAlign = 'center';
   hctx.font = '600 14px Rajdhani, sans-serif';
   hctx.fillStyle = WHITE;
   hctx.fillText(label, cx, cy + radius * 0.55);
+
+  // L / R markers at the two ends of the arc (steer gauge)
+  if (showLR) {
+    const f = 1.08;
+    hctx.font = '700 14px Rajdhani, sans-serif';
+    hctx.fillStyle = WHITE;
+    hctx.fillText('L', cx + radius * f * Math.cos(Math.PI * 0.82), cy + radius * f * Math.sin(Math.PI * 0.82) + 4);
+    hctx.fillText('R', cx + radius * f * Math.cos(Math.PI * 0.18), cy + radius * f * Math.sin(Math.PI * 0.18) + 4);
+  }
+
   hctx.textAlign = 'left';
 }
 
@@ -397,7 +408,7 @@ function drawHud() {
   const ghostCtl = !control.connected;
   drawGauge(420, H - 200, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
             'THROTTLE', control.reverse ? 'on' : 'off');
-  drawGauge(W - 420, H - 200, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER');
+  drawGauge(W - 420, H - 200, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
 
   hudTexture.needsUpdate = true;
 }
