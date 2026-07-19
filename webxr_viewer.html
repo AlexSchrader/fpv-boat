@@ -109,6 +109,18 @@ let telemetry = { recording: false, file: null, storage_free_gb: null, storage_t
 let linkState = 'good';
 let lastPingMs = null;
 
+// Measure the actual received video framerate via requestVideoFrameCallback
+// (fires once per presented frame). Falls back to -- if unsupported.
+let videoFps = 0;
+let _vfCount = 0, _vfLastMs = performance.now();
+function onVideoFrame(now) {
+  _vfCount++;
+  const dt = now - _vfLastMs;
+  if (dt >= 1000) { videoFps = Math.round(_vfCount * 1000 / dt); _vfCount = 0; _vfLastMs = now; }
+  if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onVideoFrame);
+}
+if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(onVideoFrame);
+
 // ---- controller state ----
 // steer: -1 (full left) .. +1 (full right), from the RIGHT thumbstick X
 // throttle: 0 (idle) .. 1 (full) effective output; normally the LEFT trigger,
@@ -449,9 +461,15 @@ function drawHud() {
     hctx.fillStyle = i < activeBars ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
     hctx.fillRect(bx, by, barW, bh);
   }
+  const pingX = colL + 4 * (barW + barGap) + 6;
   hctx.font = '600 13px Rajdhani, sans-serif';
   hctx.fillStyle = WHITE;
-  hctx.fillText(lastPingMs !== null ? lastPingMs + 'ms' : '--', colL + 4 * (barW + barGap) + 6, rowTopValY);
+  const pingText = lastPingMs !== null ? lastPingMs + 'ms' : '--';
+  hctx.fillText(pingText, pingX, rowTopValY);
+  const pingW = hctx.measureText(pingText).width;   // measured with the 13px font
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText((videoFps > 0 ? videoFps : '--') + 'fps', pingX + pingW + 9, rowTopValY);
 
   // --- BATTERY (top-right) ---
   hctx.font = '600 12px Rajdhani, sans-serif';
@@ -536,7 +554,7 @@ function hudSignature() {
     control.reverse, control.connected, control.cruise,
     telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
     telemetry.cpu_temp_c, telemetry.cpu_load_frac,
-    linkState, lastPingMs
+    linkState, lastPingMs, videoFps
   ].join('|');
 }
 
