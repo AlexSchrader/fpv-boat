@@ -111,7 +111,7 @@ let lastPingMs = null;
 
 // ---- controller state ----
 // steer: -1 (full left) .. +1 (full right), from the RIGHT thumbstick X
-// throttle: -1 (full astern) .. +1 (full ahead), from the LEFT thumbstick Y (forward = up)
+// throttle: 0 (idle) .. 1 (full), from the LEFT trigger; reverse toggle sends it negative on the wire
 // reverse: toggled by tapping X; inverts throttle direction on the wire
 const control = { throttle: 0, steer: 0, reverse: false, connected: false };
 
@@ -166,11 +166,11 @@ function stopRecording()  { fetch('/record/stop').catch(() => {}); }
 
 // ---- controller reading ----
 // Mapping (Quest / xr-standard):
+//   LEFT  trigger (buttons[0].value) -> throttle (0..1; X toggles reverse to flip it)
 //   RIGHT thumbstick X (axes[2]) -> steer
-//   LEFT  thumbstick Y (axes[3]) -> throttle (negated so pushing up = ahead)
 //   RIGHT button[4] = A -> double-tap start record / single-tap stop record
 //   LEFT  button[4] = X -> tap toggles reverse
-//   Reserved (ignored): B (right[5]), Y (left[5]), triggers L/R (buttons[0]/[1])
+//   Reserved (ignored): B (right[5]), Y (left[5]), RIGHT trigger, grips, LEFT thumbstick
 const DEADZONE = 0.08;
 const DOUBLE_TAP_MS = 300;
 let aPrev = false, aStopTimer = null;
@@ -191,18 +191,19 @@ function readPads() {
     if (!left && !right) return null;
     return {
       steer:    right && right.axes.length > 2 ? dz(right.axes[2]) : 0,
-      throttle: left  && left.axes.length  > 3 ? dz(-left.axes[3]) : 0,
+      throttle: left && left.buttons[0] ? dz(left.buttons[0].value) : 0,
       a: !!(right && right.buttons[4] && right.buttons[4].pressed),
       x: !!(left  && left.buttons[4]  && left.buttons[4].pressed),
     };
   }
-  // Desktop fallback: standard gamepad mapping (left stick 0/1, right stick 2/3, A=0, X=2)
+  // Desktop fallback: standard gamepad (right stick axis2 = steer, left trigger
+  // button6 = throttle, A=0, X=2)
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   const gp = pads && [...pads].find(p => p);
   if (!gp) return null;
   return {
     steer:    dz(gp.axes[2] || 0),
-    throttle: dz(-(gp.axes[1] || 0)),
+    throttle: dz(gp.buttons[6] ? gp.buttons[6].value : 0),
     a: !!(gp.buttons[0] && gp.buttons[0].pressed),
     x: !!(gp.buttons[2] && gp.buttons[2].pressed),
   };

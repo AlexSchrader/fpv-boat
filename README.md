@@ -23,8 +23,8 @@ input from the Quest controllers over a websocket to drive the motors.
 
 | Input                            | Action                              |
 | -------------------------------- | ----------------------------------- |
+| Left trigger                     | Throttle (squeeze to go)            |
 | Right thumbstick X               | Steer                               |
-| Left thumbstick Y (up = ahead)   | Throttle                            |
 | A — double-tap                   | Start recording                     |
 | A — single-tap                   | Stop recording                      |
 | X — tap                          | Toggle reverse (inverts throttle)   |
