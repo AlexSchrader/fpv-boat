@@ -17,7 +17,7 @@
   - `/telemetry` — JSON with recording state + disk space
   - `/viewer` — serves the WebXR HTML page
   - `/three.module.js` — locally hosted Three.js (no CDN dependency)
-  - `/ws/control` — websocket endpoint, currently receives `{throttle, steer, reverse}` JSON but does nothing with it yet (no motor hardware connected)
+  - `/ws/control` — websocket endpoint, receives `{throttle, steer, reverse}` JSON and drives `motor_control.py` (differential thrust). No-op until the L298N is wired, but the software path is complete.
 - `webxr_viewer.html` — Three.js WebXR page:
   - Head-locked video plane + HUD plane (canvas-texture based), rendered in immersive VR
   - HUD shows: link quality (bars + ping), battery (placeholder, no sensor), recording status + storage bar, throttle/steer gauges
@@ -26,7 +26,7 @@
 - `three.module.js` — vendored Three.js r0.160, served locally to avoid CDN dependency issues in the Quest browser
 - `stream.py` — legacy MJPEG-based server, superseded by `webrtc_stream.py`, can likely be deleted once WebRTC is confirmed fully stable
 
-**Known active bug:** Gamepad button presses (A/B/X/Y) are not registering at all via `navigator.getGamepads()`, even though thumbstick axes (throttle/steer) appear to read correctly. Suspected cause: Quest's WebXR implementation may not reliably populate the standard Gamepad API during an immersive session — the more spec-correct approach is reading `XRSession.inputSources` directly instead. This was identified but not yet fixed as of this doc.
+**~~Known active bug~~ (RESOLVED):** Gamepad button presses weren't registering via `navigator.getGamepads()` on the Quest. Fixed by reading `session.inputSources` directly (Track A). Controller input is now confirmed working in-headset. See the current mapping in `README.md` / `HARDWARE.md`.
 
 **Repo:** `github.com/AlexSchrader/fpv-boat`, SSH-auth push access set up on the Pi. `.gitignore` in place excluding `.ssh/`, `.cache/`, `recordings/`, and other non-project files after an earlier incident where a private key was briefly staged (rotated afterward, not actually exposed). **Always `git add` explicit filenames on this repo, never `git add -A` or `git add .`, since the Pi's home directory contains far more than just the project.**
 
@@ -34,7 +34,14 @@
 
 ---
 
-## Track A — Fix Controller Input (WebXR inputSources)
+## Track A — Fix Controller Input (WebXR inputSources) — ✅ DONE
+
+> Completed: migrated to `session.inputSources`, mapped right stick → steer,
+> left stick → throttle, A double-tap/tap → record start/stop, X → reverse
+> toggle (B/Y/triggers reserved), streaming to `/ws/control`. Confirmed live in
+> the headset. Note the final button scheme differs from the original text
+> below (A was "record toggle", B was "reverse") — the mapping in `README.md`
+> is canonical.
 
 **Goal:** Get real throttle/steer/button data flowing reliably from the Quest controllers to the Pi.
 
@@ -185,9 +192,12 @@ right_motor = throttle - steer
 
 | File | Purpose | Status |
 |---|---|---|
-| `webrtc_stream.py` | Main server: WebRTC video, recording, telemetry, control websocket | Active, working |
-| `webxr_viewer.html` | Client: Three.js WebXR viewer + HUD | Active, controller input bug open |
+| `webrtc_stream.py` | Main server: WebRTC video, recording, telemetry, control websocket, optional HTTPS | Active, working |
+| `webxr_viewer.html` | Client: Three.js WebXR viewer + HUD + controller input | Active, working |
+| `README.md` | Project overview, setup, controls | Active |
+| `HARDWARE.md` | L298N wiring, power, watchdog, pin map | Active |
+| `.github/workflows/ci.yml` | CI: byte-compile Python + JS syntax check | Active |
 | `three.module.js` | Vendored Three.js | Static, no changes expected |
 | `stream.py` | Legacy MJPEG server | Superseded, candidate for deletion |
-| `motor_control.py` | Motor GPIO driver | Not yet created (Track B) |
+| `motor_control.py` | Motor GPIO driver (L298N differential thrust + watchdog) | Created; awaiting L298N hardware to go live |
 | `.gitignore` | Repo hygiene | In place |
