@@ -348,7 +348,7 @@ function drawHud() {
 
   // ---- unified top card (compact) ----
   const cardW = 430, cardH = 108;
-  const cardX = W/2 - cardW/2, cardY = 66;
+  const cardX = W/2 - cardW/2, cardY = 88;
   roundedPanel(cardX, cardY, cardW, cardH, 12);
 
   // divider line, horizontal (between rows) and vertical (between columns)
@@ -434,7 +434,7 @@ function drawHud() {
   hctx.fillText(usedGb + '/' + totalGb + 'GB', colR, rowBotValY + 8);
 
   const ghostCtl = !control.connected;
-  const gaugeY = H - 135;
+  const gaugeY = H - 165;
   drawGauge(W/2 - 120, gaugeY, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
             'THROTTLE', control.reverse ? 'on' : 'off');
   drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
