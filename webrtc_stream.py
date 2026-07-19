@@ -150,13 +150,35 @@ async def record_stop(request):
 
     return web.json_response({"status": "recording stopped", "file": finished_file})
 
+def _cpu_temp_c():
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            return round(int(f.read().strip()) / 1000.0, 1)
+    except Exception:
+        return None
+
+
+def _cpu_load():
+    # 1-minute load average, and load normalized to core count (0..1+)
+    try:
+        load1 = os.getloadavg()[0]
+        cores = os.cpu_count() or 1
+        return round(load1, 2), round(load1 / cores, 2)
+    except (OSError, AttributeError):
+        return None, None
+
+
 async def telemetry(request):
     total, used, free = shutil.disk_usage(RECORDINGS_DIR)
+    load1, load_frac = _cpu_load()
     return web.json_response({
         "recording": recording,
         "file": current_filename,
         "storage_free_gb": round(free / (1024**3), 2),
-        "storage_total_gb": round(total / (1024**3), 2)
+        "storage_total_gb": round(total / (1024**3), 2),
+        "cpu_temp_c": _cpu_temp_c(),
+        "cpu_load": load1,
+        "cpu_load_frac": load_frac,
     })
 
 async def recordings_list(request):
@@ -180,6 +202,26 @@ async def recording_download(request):
     if not os.path.isfile(path):
         return web.json_response({"error": "not found"}, status=404)
     return web.FileResponse(path)
+
+
+async def recording_delete(request):
+    name = os.path.basename(request.query.get("file", ""))  # basename guards traversal
+    if not name.endswith(".h264"):
+        return web.json_response({"error": "invalid file"}, status=400)
+    path = os.path.join(RECORDINGS_DIR, name)
+    if not os.path.isfile(path):
+        return web.json_response({"error": "not found"}, status=404)
+    if path == current_filename:
+        return web.json_response({"error": "cannot delete the active recording"}, status=409)
+    try:
+        os.remove(path)
+    except OSError as e:
+        return web.json_response({"error": str(e)}, status=500)
+    return web.json_response({"status": "deleted", "file": name})
+
+
+async def clips(request):
+    return web.FileResponse(os.path.expanduser("~/clips.html"))
 
 
 async def viewer(request):
@@ -226,6 +268,8 @@ app.router.add_get("/record/stop", record_stop)
 app.router.add_get("/telemetry", telemetry)
 app.router.add_get("/recordings", recordings_list)
 app.router.add_get("/recordings/download", recording_download)
+app.router.add_get("/recordings/delete", recording_delete)
+app.router.add_get("/clips", clips)
 app.router.add_get("/viewer", viewer)
 app.router.add_get("/three.module.js", three_js)
 app.router.add_get("/ws/control", control_ws)

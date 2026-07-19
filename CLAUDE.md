@@ -19,10 +19,10 @@ A Meta Quest 2 FPV-controlled RC boat. A Raspberry Pi Zero 2 W on the boat strea
 - **`webrtc_stream.py`** — the server. aiohttp app, HTTPS. Owns the `Picamera2` object and everything camera-related. Routes:
   - `/offer` — WebRTC signaling (video stream to the browser)
   - `/record/start`, `/record/stop` — H.264 recording to `~/recordings/`, runs *simultaneously* with the live WebRTC stream (dual output from one `Picamera2` instance — don't refactor this into two separate camera opens, it'll fail with "device busy"). Before each recording, oldest clips are auto-deleted if free space is below `RECORDINGS_MIN_FREE_GB` (default 2 GB, `0` disables) — never the active file.
-  - `/recordings`, `/recordings/download?file=NAME` — list clips (name/size/timestamp) and download one (basename-guarded)
-  - `/telemetry` — JSON status (recording state, disk space)
+  - `/recordings`, `/recordings/download?file=NAME`, `/recordings/delete?file=NAME` — list/download/delete clips (basename-guarded; delete refuses the active file)
+  - `/telemetry` — JSON status (recording state, disk space, CPU temp + load)
   - `/control_status` — last received control values
-  - `/viewer`, `/three.module.js` — serves the client
+  - `/viewer`, `/clips`, `/three.module.js` — serves the client (VR viewer, recordings manager page, Three.js)
   - `/ws/control` — websocket, receives `{throttle, steer, reverse}` from the browser. Stores `latest_control` **and** drives `motor_control.py` (`motors.set_drive`). No-op physically until the L298N is wired, but the software path is complete.
 - **`motor_control.py`** — the differential-thrust L298N motor driver, decoupled from the server so it can be bench-tested standalone (`python3 motor_control.py`). Implements `left = throttle + steer` / `right = throttle - steer` and a **~500 ms watchdog** (zeros the motors if no `set_drive` arrives). Runs as a **no-op if `gpiozero` is unavailable**, so the server works fine on a machine with no GPIO. Pin map lives in `HARDWARE.md`.
 - **`webxr_viewer.html`** — the client. Single-file Three.js WebXR app (ES module, no build step). Key things to know:
@@ -42,10 +42,11 @@ Read via `XRSession.inputSources` during the immersive session:
 - **Left trigger** → throttle (0..1)
 - **Right thumbstick X** → steer
 - **A** — double-tap = start recording, single-tap = stop
-- **X** — tap toggles reverse (inverts throttle direction)
-- **B, Y, right trigger, thumbsticks** — reserved / unused
+- **X** — tap toggles reverse; while cruising, hold = slow down
+- **Y** — double-tap toggles **cruise** (throttle hold); while cruising, hold = speed up
+- **B, right trigger, thumbsticks, grips** — reserved / unused
 
-The viewer streams `{throttle, steer, reverse}` to `/ws/control` at ~20 Hz. Reverse is applied **client-side** (throttle sent negative) so the Pi stays dumb.
+Cruise is **client-side**: it holds `cruiseSpeed` as the throttle, X/Y adjust it, reverse is locked out, and a trigger squeeze past ~50% disengages it (safety). The viewer streams `{throttle, steer, reverse}` to `/ws/control` at ~20 Hz — the Pi only ever sees the resulting throttle, so it stays dumb.
 
 > Resolved: an earlier bug where gamepad **buttons** didn't register via `navigator.getGamepads()` during a WebXR session was fixed by switching to `inputSources`. Don't reintroduce `navigator.getGamepads()` for the in-VR path (a desktop fallback that uses it is fine and clearly marked).
 
