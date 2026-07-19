@@ -281,13 +281,12 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR) {
   hctx.fillStyle = WHITE;
   hctx.fillText(label, cx, cy + radius * 0.55);
 
-  // L / R markers at the two ends of the arc (steer gauge)
+  // L / R markers flanking the label on the same baseline -> reads as "L  STEER  R"
   if (showLR) {
-    const f = 1.08;
-    hctx.font = '700 14px Rajdhani, sans-serif';
-    hctx.fillStyle = WHITE;
-    hctx.fillText('L', cx + radius * f * Math.cos(Math.PI * 0.82), cy + radius * f * Math.sin(Math.PI * 0.82) + 4);
-    hctx.fillText('R', cx + radius * f * Math.cos(Math.PI * 0.18), cy + radius * f * Math.sin(Math.PI * 0.18) + 4);
+    hctx.font = '600 13px Rajdhani, sans-serif';
+    hctx.fillStyle = LABEL_COLOR;
+    hctx.fillText('L', cx - radius * 0.92, cy + radius * 0.55);
+    hctx.fillText('R', cx + radius * 0.92, cy + radius * 0.55);
   }
 
   hctx.textAlign = 'left';
