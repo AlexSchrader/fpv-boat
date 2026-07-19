@@ -58,6 +58,24 @@ GPIOZERO_PIN_FACTORY=pigpio python3 webrtc_stream.py
 The server runs streaming + recording even without the GPIO libs — it just logs
 `hardware disabled` and skips motor output.
 
+## Tuning (env vars)
+
+Set these before launching `webrtc_stream.py` — defaults keep current behavior:
+
+| Var | Default | Purpose |
+| --- | ------- | ------- |
+| `RECORD_WIDTH` / `RECORD_HEIGHT` | `1280` / `720` | Recorded (main) resolution |
+| `STREAM_WIDTH` / `STREAM_HEIGHT` | `1280` / `720` | Streamed (lores) resolution — must be ≤ record size |
+| `RECORD_BITRATE` | `0` (encoder default) | H.264 record bitrate, bits/sec |
+| `RECORDINGS_MIN_FREE_GB` | `2.0` | Free-space floor before auto-deleting oldest clips (`0` disables) |
+
+1280×720 is the known-good baseline — higher resolutions have overloaded the
+Pi's encoder before, so bump incrementally while watching `htop`. Example:
+
+```sh
+RECORD_BITRATE=8000000 python3 webrtc_stream.py
+```
+
 ## Endpoints
 
 | Route              | Purpose                                            |
