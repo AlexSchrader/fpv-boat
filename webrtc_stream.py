@@ -55,8 +55,10 @@ def enforce_storage_limit():
     return deleted
 
 # Camera resolution / recording bitrate, tunable via env vars without editing
-# source. Defaults are the known-good 1280x720 baseline (higher resolutions have
-# overloaded the Pi's encoder before — bump incrementally while watching `htop`).
+# source. The WebRTC stream (lores) is software-encoded to H.264 by aiortc, so
+# its resolution drives CPU load/heat on the Pi — the default is deliberately
+# lighter (960x540) to keep temps down. Recording (main) stays 720p since it
+# uses the hardware H.264 encoder. Bump either while watching `htop`/CPU temp.
 # The lores (streamed) size must not exceed the main (recorded) size.
 def _env_int(name, default):
     try:
@@ -66,8 +68,8 @@ def _env_int(name, default):
 
 RECORD_WIDTH = _env_int("RECORD_WIDTH", 1280)
 RECORD_HEIGHT = _env_int("RECORD_HEIGHT", 720)
-STREAM_WIDTH = _env_int("STREAM_WIDTH", 1280)
-STREAM_HEIGHT = _env_int("STREAM_HEIGHT", 720)
+STREAM_WIDTH = _env_int("STREAM_WIDTH", 960)
+STREAM_HEIGHT = _env_int("STREAM_HEIGHT", 540)
 RECORD_BITRATE = _env_int("RECORD_BITRATE", 0)  # bits/sec; 0 = encoder default
 
 picam2 = Picamera2()
