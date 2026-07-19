@@ -114,10 +114,6 @@ let lastPingMs = null;
 // throttle: -1 (full astern) .. +1 (full ahead), from the LEFT thumbstick Y (forward = up)
 // reverse: toggled by tapping X; inverts throttle direction on the wire
 const control = { throttle: 0, steer: 0, reverse: false, connected: false };
-// Live controller diagnostics, drawn onto the HUD canvas (DOM overlays are
-// invisible inside VR). Shows raw axes + which button indices are pressed, so a
-// button/axis index mismatch on the Quest is obvious. Remove once verified.
-let ctlDebug = 'no controllers';
 
 async function pollTelemetry() {
   const t0 = performance.now();
@@ -212,27 +208,7 @@ function readPads() {
   };
 }
 
-// Build a compact raw dump of every connected controller for the HUD readout.
-function buildCtlDebug() {
-  const session = renderer.xr.getSession && renderer.xr.getSession();
-  const fmtPad = (tag, g) => {
-    const axes = [...g.axes].map(a => a.toFixed(2)).join(',');
-    const btns = g.buttons.map((b, i) => b.pressed ? i : -1).filter(i => i >= 0);
-    return `${tag} ax[${axes}] btn[${btns.join(',') || '-'}]`;
-  };
-  if (session) {
-    const rows = [];
-    for (const src of session.inputSources) {
-      if (src.gamepad) rows.push(fmtPad((src.handedness || '?')[0].toUpperCase(), src.gamepad));
-    }
-    return rows.length ? rows.join('   ') : 'in VR, no gamepads';
-  }
-  const gp = (navigator.getGamepads ? [...navigator.getGamepads()] : []).find(p => p);
-  return gp ? fmtPad('GP', gp) : 'no controllers';
-}
-
 function pollControllers(nowMs) {
-  ctlDebug = buildCtlDebug();
   const pad = readPads();
   if (!pad) { control.connected = false; control.throttle = 0; control.steer = 0; return; }
   control.connected = true;
@@ -260,12 +236,14 @@ function pollControllers(nowMs) {
 
 const CYAN = '#00e5ff';
 const ORANGE = '#ff7a1a';
+const RED = '#ff2b2b';
 const WHITE = '#eef4f5';
 const GHOST = '#3a4650';
 const GHOST_LABEL = 'rgba(255,255,255,0.35)';
 const LABEL_COLOR = 'rgba(255,255,255,0.4)';
 
-function drawGauge(cx, cy, radius, value01, ghost, label) {
+// revState: undefined = no badge (steer gauge); 'off' = greyed REV; 'on' = neon-orange REV
+function drawGauge(cx, cy, radius, value01, ghost, label, revState) {
   hctx.beginPath();
   hctx.arc(cx, cy, radius, Math.PI * 0.82, Math.PI * 0.18, false);
   hctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -285,8 +263,19 @@ function drawGauge(cx, cy, radius, value01, ghost, label) {
   hctx.textAlign = 'center';
   hctx.font = '700 26px Orbitron, sans-serif';
   hctx.fillStyle = ghost ? GHOST : CYAN;
-  hctx.fillText(ghost ? '--%' : Math.round(value01*100) + '%', cx, cy - 6);
+  const pctText = ghost ? '--%' : Math.round(value01*100) + '%';
+  hctx.fillText(pctText, cx, cy - 6);
 
+  // REV badge to the right of the % (throttle gauge only)
+  if (revState) {
+    const pctW = hctx.measureText(pctText).width;   // measured while 26px font is active
+    hctx.textAlign = 'left';
+    hctx.font = '700 15px Orbitron, sans-serif';
+    hctx.fillStyle = revState === 'on' ? ORANGE : GHOST;
+    hctx.fillText('REV', cx + pctW / 2 + 8, cy - 6);
+  }
+
+  hctx.textAlign = 'center';
   hctx.font = '600 14px Rajdhani, sans-serif';
   hctx.fillStyle = WHITE;
   hctx.fillText(label, cx, cy + radius * 0.55);
@@ -375,12 +364,12 @@ function drawHud() {
   hctx.font = '600 12px Rajdhani, sans-serif';
   hctx.fillStyle = LABEL_COLOR;
   hctx.fillText('REC', colL + 14, rowBotLabelY);
-  hctx.fillStyle = telemetry.recording ? ORANGE : 'rgba(255,255,255,0.15)';
+  hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.15)';
   hctx.beginPath();
   hctx.arc(colL + 4, rowBotLabelY - 4, 5, 0, Math.PI*2);
   hctx.fill();
   hctx.font = '600 16px Orbitron, sans-serif';
-  hctx.fillStyle = telemetry.recording ? ORANGE : WHITE;
+  hctx.fillStyle = telemetry.recording ? RED : WHITE;
   hctx.fillText(telemetry.recording ? 'ON AIR' : 'OFF', colL, rowBotValY);
 
   // --- STORAGE (bottom-right) ---
@@ -407,20 +396,8 @@ function drawHud() {
 
   const ghostCtl = !control.connected;
   drawGauge(420, H - 200, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
-            control.reverse ? 'THROTTLE (REV)' : 'THROTTLE');
+            'THROTTLE', control.reverse ? 'on' : 'off');
   drawGauge(W - 420, H - 200, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER');
-
-  // ---- controller diagnostics (top-left, visible in VR) ----
-  hctx.font = '600 20px monospace';
-  hctx.fillStyle = control.connected ? CYAN : GHOST;
-  hctx.fillText(ctlDebug, 24, 44);
-  hctx.font = '600 16px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText(
-    `thr ${control.throttle.toFixed(2)}  steer ${control.steer.toFixed(2)}  ` +
-    `rev ${control.reverse ? 'ON' : 'off'}  rec ${telemetry.recording ? 'ON' : 'off'}`,
-    24, 68
-  );
 
   hudTexture.needsUpdate = true;
 }
