@@ -123,7 +123,13 @@ right_motor = throttle - steer
 
 ---
 
-## Track E — Recording Management
+## Track E — Recording Management — ✅ DONE
+
+> Completed: `/record/start` calls `enforce_storage_limit()`, which deletes the
+> oldest clips until `RECORDINGS_MIN_FREE_GB` (default 2, set 0 to disable) is
+> free, never touching the active file. Added `GET /recordings` (name/size/
+> timestamp, newest first) and `GET /recordings/download?file=NAME` (with a
+> basename traversal guard). Time-based expiry could still be layered on later.
 
 **Goal:** Prevent the SD card from silently filling up, and make old recordings easy to manage.
 

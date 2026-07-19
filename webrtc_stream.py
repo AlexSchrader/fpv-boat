@@ -16,6 +16,43 @@ from picamera2.outputs import FileOutput
 RECORDINGS_DIR = os.path.expanduser("~/recordings")
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 
+# Keep at least this many GB free by deleting the oldest recordings before each
+# new one starts. Set RECORDINGS_MIN_FREE_GB=0 to disable auto-cleanup.
+RECORDINGS_MIN_FREE_GB = float(os.environ.get("RECORDINGS_MIN_FREE_GB", "2.0"))
+
+
+def _recording_files():
+    """Recording files, oldest first (by mtime)."""
+    try:
+        names = [n for n in os.listdir(RECORDINGS_DIR) if n.endswith(".h264")]
+    except FileNotFoundError:
+        return []
+    paths = [os.path.join(RECORDINGS_DIR, n) for n in names]
+    return sorted(paths, key=lambda p: os.path.getmtime(p))
+
+
+def enforce_storage_limit():
+    """Delete oldest recordings until >= RECORDINGS_MIN_FREE_GB is free.
+
+    Never deletes the file currently being recorded. Returns the list of
+    deleted paths (empty if nothing was removed / cleanup is disabled).
+    """
+    deleted = []
+    if RECORDINGS_MIN_FREE_GB <= 0:
+        return deleted
+    while shutil.disk_usage(RECORDINGS_DIR).free / (1024**3) < RECORDINGS_MIN_FREE_GB:
+        candidates = [p for p in _recording_files() if p != current_filename]
+        if not candidates:
+            break  # nothing left we're allowed to delete
+        oldest = candidates[0]
+        try:
+            os.remove(oldest)
+            deleted.append(oldest)
+            print(f"[storage] freed space, deleted {os.path.basename(oldest)}")
+        except OSError:
+            break
+    return deleted
+
 picam2 = Picamera2()
 video_config = picam2.create_video_configuration(
     main={"size": (1280, 720)},
@@ -71,6 +108,8 @@ async def record_start(request):
     if recording:
         return web.json_response({"status": "already recording", "file": current_filename})
 
+    enforce_storage_limit()
+
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     current_filename = os.path.join(RECORDINGS_DIR, f"boat_{timestamp}.h264")
 
@@ -101,6 +140,29 @@ async def telemetry(request):
         "storage_free_gb": round(free / (1024**3), 2),
         "storage_total_gb": round(total / (1024**3), 2)
     })
+
+async def recordings_list(request):
+    items = []
+    for path in reversed(_recording_files()):  # newest first
+        st = os.stat(path)
+        items.append({
+            "name": os.path.basename(path),
+            "size_bytes": st.st_size,
+            "size_mb": round(st.st_size / (1024**2), 1),
+            "modified": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+        })
+    return web.json_response({"count": len(items), "recordings": items})
+
+
+async def recording_download(request):
+    name = os.path.basename(request.query.get("file", ""))  # basename guards traversal
+    if not name.endswith(".h264"):
+        return web.json_response({"error": "invalid file"}, status=400)
+    path = os.path.join(RECORDINGS_DIR, name)
+    if not os.path.isfile(path):
+        return web.json_response({"error": "not found"}, status=404)
+    return web.FileResponse(path)
+
 
 async def viewer(request):
     return web.FileResponse(os.path.expanduser("~/webxr_viewer.html"))
@@ -144,6 +206,8 @@ app.router.add_post("/offer", offer)
 app.router.add_get("/record/start", record_start)
 app.router.add_get("/record/stop", record_stop)
 app.router.add_get("/telemetry", telemetry)
+app.router.add_get("/recordings", recordings_list)
+app.router.add_get("/recordings/download", recording_download)
 app.router.add_get("/viewer", viewer)
 app.router.add_get("/three.module.js", three_js)
 app.router.add_get("/ws/control", control_ws)
