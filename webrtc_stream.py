@@ -53,13 +53,31 @@ def enforce_storage_limit():
             break
     return deleted
 
+# Camera resolution / recording bitrate, tunable via env vars without editing
+# source. Defaults are the known-good 1280x720 baseline (higher resolutions have
+# overloaded the Pi's encoder before — bump incrementally while watching `htop`).
+# The lores (streamed) size must not exceed the main (recorded) size.
+def _env_int(name, default):
+    try:
+        return int(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+
+RECORD_WIDTH = _env_int("RECORD_WIDTH", 1280)
+RECORD_HEIGHT = _env_int("RECORD_HEIGHT", 720)
+STREAM_WIDTH = _env_int("STREAM_WIDTH", 1280)
+STREAM_HEIGHT = _env_int("STREAM_HEIGHT", 720)
+RECORD_BITRATE = _env_int("RECORD_BITRATE", 0)  # bits/sec; 0 = encoder default
+
 picam2 = Picamera2()
 video_config = picam2.create_video_configuration(
-    main={"size": (1280, 720)},
-    lores={"size": (1280, 720), "format": "YUV420"}
+    main={"size": (RECORD_WIDTH, RECORD_HEIGHT)},
+    lores={"size": (STREAM_WIDTH, STREAM_HEIGHT), "format": "YUV420"}
 )
 picam2.configure(video_config)
 picam2.start()
+print(f"[camera] stream {STREAM_WIDTH}x{STREAM_HEIGHT}, record {RECORD_WIDTH}x{RECORD_HEIGHT}"
+      + (f" @ {RECORD_BITRATE} bps" if RECORD_BITRATE else " (default bitrate)"))
 
 recording = False
 h264_encoder = None
@@ -113,7 +131,7 @@ async def record_start(request):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     current_filename = os.path.join(RECORDINGS_DIR, f"boat_{timestamp}.h264")
 
-    h264_encoder = H264Encoder()
+    h264_encoder = H264Encoder(bitrate=RECORD_BITRATE) if RECORD_BITRATE > 0 else H264Encoder()
     picam2.start_encoder(h264_encoder, FileOutput(current_filename))
     recording = True
 

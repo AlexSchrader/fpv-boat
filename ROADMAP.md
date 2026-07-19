@@ -101,7 +101,7 @@ right_motor = throttle - steer
 **What to try, roughly in order of effort:**
 1. **Confirm/verify hardware encoding is actually active.** Check the `aiortc` `h264.py` codec file on the Pi for the `h264_v4l2m2m` patch and confirm no "falling back to libx264" warning appears in server logs when a client connects.
 2. **Resolution/bitrate tuning** — 1280x720 is the known-good baseline. Any increase (tried 1080p30 earlier, caused visible degradation from CPU/encoder overload) should be tested incrementally, watching Pi CPU usage (`htop`) live while streaming, not just eyeballing the result.
-3. Consider exposing resolution/bitrate as environment variables or a config file rather than hardcoded, so this can be tuned without editing source each time.
+3. ~~Consider exposing resolution/bitrate as environment variables~~ ✅ **DONE** — `RECORD_WIDTH/HEIGHT`, `STREAM_WIDTH/HEIGHT`, `RECORD_BITRATE` env vars (defaults = the known-good 1280×720). See `README.md` → Tuning. Items 1 (verify hardware encoding) and 2 (actually pushing resolution) still need on-Pi testing.
 
 **Files touched:** `webrtc_stream.py`, possibly the installed `aiortc` package files directly (document any such patches clearly since they don't survive a `pip install --upgrade`).
 
