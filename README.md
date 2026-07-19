@@ -67,16 +67,19 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 
 | Var | Default | Purpose |
 | --- | ------- | ------- |
-| `RECORD_WIDTH` / `RECORD_HEIGHT` | `1280` / `720` | Recorded (main) resolution |
-| `STREAM_WIDTH` / `STREAM_HEIGHT` | `1280` / `720` | Streamed (lores) resolution — must be ≤ record size |
+| `RECORD_WIDTH` / `RECORD_HEIGHT` | `1280` / `720` | Recorded (main) resolution — hardware-encoded |
+| `STREAM_WIDTH` / `STREAM_HEIGHT` | `960` / `540` | Streamed (lores) resolution — must be ≤ record size |
 | `RECORD_BITRATE` | `0` (encoder default) | H.264 record bitrate, bits/sec |
+| `CPU_OVERHEAT_C` | `80` | CPU temp that triggers auto-shutdown |
 | `RECORDINGS_MIN_FREE_GB` | `2.0` | Free-space floor before auto-deleting oldest clips (`0` disables) |
 
-1280×720 is the known-good baseline — higher resolutions have overloaded the
-Pi's encoder before, so bump incrementally while watching `htop`. Example:
+The **stream (lores) is software-encoded by aiortc**, so its resolution is the
+main driver of CPU load/heat — the default is 960×540 to keep temps down.
+Recording (main) stays 720p because it uses the hardware encoder. Bump the
+stream while watching `htop` / the HUD CPU temp:
 
 ```sh
-RECORD_BITRATE=8000000 python3 webrtc_stream.py
+STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 ```
 
 ## Endpoints
