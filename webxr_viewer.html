@@ -279,8 +279,11 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR) {
 
   hctx.textAlign = 'center';
   hctx.font = '600 14px Rajdhani, sans-serif';
+  const labelY = cy + radius * 0.55;
+  const lw = hctx.measureText(label).width;
+  fillRoundRect(cx - lw / 2 - 10, labelY - 15, lw + 20, 22, 6, 'rgba(12,16,18,0.82)');
   hctx.fillStyle = WHITE;
-  hctx.fillText(label, cx, cy + radius * 0.55);
+  hctx.fillText(label, cx, labelY);
 
   // L / R as capped badges sitting on the two arc ends, connected to the gauge
   if (showLR) {
@@ -326,32 +329,44 @@ function roundedPanel(x, y, w, h, r) {
   hctx.stroke();
 }
 
+function fillRoundRect(x, y, w, h, r, fill) {
+  hctx.fillStyle = fill;
+  hctx.beginPath();
+  hctx.moveTo(x + r, y);
+  hctx.arcTo(x + w, y, x + w, y + h, r);
+  hctx.arcTo(x + w, y + h, x, y + h, r);
+  hctx.arcTo(x, y + h, x, y, r);
+  hctx.arcTo(x, y, x + w, y, r);
+  hctx.closePath();
+  hctx.fill();
+}
+
 function drawHud() {
   hctx.clearRect(0, 0, hudCanvasEl.width, hudCanvasEl.height);
   hctx.textBaseline = 'alphabetic';
   const W = hudCanvasEl.width, H = hudCanvasEl.height;
 
-  // ---- unified top card ----
-  const cardW = 460, cardH = 150;
-  const cardX = W/2 - cardW/2, cardY = 95;
-  roundedPanel(cardX, cardY, cardW, cardH, 14);
+  // ---- unified top card (compact) ----
+  const cardW = 430, cardH = 108;
+  const cardX = W/2 - cardW/2, cardY = 66;
+  roundedPanel(cardX, cardY, cardW, cardH, 12);
 
   // divider line, horizontal (between rows) and vertical (between columns)
   hctx.strokeStyle = 'rgba(255,255,255,0.12)';
   hctx.lineWidth = 1;
   hctx.beginPath();
-  hctx.moveTo(cardX + 20, cardY + cardH/2);
-  hctx.lineTo(cardX + cardW - 20, cardY + cardH/2);
-  hctx.moveTo(cardX + cardW/2, cardY + 16);
-  hctx.lineTo(cardX + cardW/2, cardY + cardH - 16);
+  hctx.moveTo(cardX + 18, cardY + 56);
+  hctx.lineTo(cardX + cardW - 18, cardY + 56);
+  hctx.moveTo(cardX + cardW/2, cardY + 12);
+  hctx.lineTo(cardX + cardW/2, cardY + cardH - 12);
   hctx.stroke();
 
-  const colL = cardX + 26;
-  const colR = cardX + cardW/2 + 26;
-  const rowTopLabelY = cardY + 28;
-  const rowTopValY = cardY + 55;
-  const rowBotLabelY = cardY + cardH/2 + 26;
-  const rowBotValY = cardY + cardH/2 + 53;
+  const colL = cardX + 24;
+  const colR = cardX + cardW/2 + 24;
+  const rowTopLabelY = cardY + 18;
+  const rowTopValY = cardY + 44;
+  const rowBotLabelY = cardY + 68;
+  const rowBotValY = cardY + 90;
 
   // --- LINK (top-left) ---
   hctx.font = '600 12px Rajdhani, sans-serif';
@@ -419,9 +434,10 @@ function drawHud() {
   hctx.fillText(usedGb + '/' + totalGb + 'GB', colR, rowBotValY + 8);
 
   const ghostCtl = !control.connected;
-  drawGauge(420, H - 200, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
+  const gaugeY = H - 135;
+  drawGauge(W/2 - 120, gaugeY, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
             'THROTTLE', control.reverse ? 'on' : 'off');
-  drawGauge(W - 420, H - 200, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
+  drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
 
   hudTexture.needsUpdate = true;
 }
@@ -431,13 +447,26 @@ if (document.fonts && document.fonts.ready) {
 }
 drawHud();
 
-let lastHudMs = 0;
+// Redraw the HUD only when something changed, so we're not re-uploading the
+// canvas texture every frame (that constant GPU churn was causing dropped
+// frames / black-flash reprojection in VR).
+let lastHudSig = '';
+function hudSignature() {
+  return [
+    control.throttle.toFixed(2), control.steer.toFixed(2),
+    control.reverse, control.connected,
+    telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
+    linkState, lastPingMs
+  ].join('|');
+}
+
 renderer.setAnimationLoop(() => {
   updateVideoTexture();
   const nowMs = performance.now();
   pollControllers(nowMs);
   sendControl(nowMs);
-  if (nowMs - lastHudMs > 66) { lastHudMs = nowMs; drawHud(); }  // ~15 Hz live HUD
+  const sig = hudSignature();
+  if (sig !== lastHudSig) { lastHudSig = sig; drawHud(); }
   if (renderer.xr.isPresenting) {
     const xrCamera = renderer.xr.getCamera(camera);
     headLockGroup.position.copy(xrCamera.position);
