@@ -281,12 +281,25 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR) {
   hctx.fillStyle = WHITE;
   hctx.fillText(label, cx, cy + radius * 0.55);
 
-  // L / R markers flanking the label on the same baseline -> reads as "L  STEER  R"
+  // L / R as capped badges sitting on the two arc ends, connected to the gauge
   if (showLR) {
-    hctx.font = '600 13px Rajdhani, sans-serif';
-    hctx.fillStyle = LABEL_COLOR;
-    hctx.fillText('L', cx - radius * 0.92, cy + radius * 0.55);
-    hctx.fillText('R', cx + radius * 0.92, cy + radius * 0.55);
+    const endBadge = (x, y, letter) => {
+      hctx.beginPath();
+      hctx.arc(x, y, 11, 0, Math.PI * 2);
+      hctx.fillStyle = 'rgba(16,20,22,0.92)';
+      hctx.fill();
+      hctx.lineWidth = 2;
+      hctx.strokeStyle = ghost ? GHOST : CYAN;
+      hctx.stroke();
+      hctx.fillStyle = WHITE;
+      hctx.font = '700 13px Rajdhani, sans-serif';
+      hctx.textAlign = 'center';
+      hctx.textBaseline = 'middle';
+      hctx.fillText(letter, x, y + 0.5);
+      hctx.textBaseline = 'alphabetic';
+    };
+    endBadge(cx + radius * Math.cos(Math.PI * 0.82), cy + radius * Math.sin(Math.PI * 0.82), 'L');
+    endBadge(cx + radius * Math.cos(Math.PI * 0.18), cy + radius * Math.sin(Math.PI * 0.18), 'R');
   }
 
   hctx.textAlign = 'left';
