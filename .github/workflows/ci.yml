@@ -19,7 +19,7 @@ jobs:
       # Byte-compile only: checks syntax without importing the Pi-only libs
       # (picamera2, aiortc, gpiozero, flask) that aren't installed in CI.
       - name: Byte-compile Python
-        run: python -m py_compile webrtc_stream.py motor_control.py stream.py
+        run: python -m py_compile *.py
 
       # Extract the viewer's ES module and syntax-check it with Node.
       - name: Check viewer module JS
