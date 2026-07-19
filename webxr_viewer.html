@@ -270,9 +270,9 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState) {
   if (revState) {
     const pctW = hctx.measureText(pctText).width;   // measured while 26px font is active
     hctx.textAlign = 'left';
-    hctx.font = '700 15px Orbitron, sans-serif';
+    hctx.font = '700 11px Orbitron, sans-serif';
     hctx.fillStyle = revState === 'on' ? ORANGE : GHOST;
-    hctx.fillText('REV', cx + pctW / 2 + 8, cy - 6);
+    hctx.fillText('REV', cx + pctW / 2 + 6, cy - 6);
   }
 
   hctx.textAlign = 'center';
