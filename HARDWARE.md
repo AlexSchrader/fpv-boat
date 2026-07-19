@@ -83,6 +83,27 @@ python3 motor_control.py
 This ramps both motors ahead, spins in place each way, then astern — confirming
 direction, speed response, and channel independence.
 
+## Thermal safety (auto-shutdown)
+
+The Pi Zero 2 W is thermally marginal under video encoding. The server runs a
+background monitor: if CPU temperature stays at/above `CPU_OVERHEAT_C` (default
+**80 °C**) for a few seconds, it stops the motors and **shuts the Pi down** to
+protect the hardware. The HUD temp readout is color-coded: **white** = OK,
+**yellow** = caution (≥70 °C), **red** = overheating (≥80 °C, shutdown imminent).
+
+For the shutdown to work, the server's user needs **passwordless `sudo shutdown`**.
+Add a sudoers drop-in once:
+
+```sh
+echo "$USER ALL=(ALL) NOPASSWD: /sbin/shutdown" | sudo tee /etc/sudoers.d/thermal-shutdown
+sudo chmod 440 /etc/sudoers.d/thermal-shutdown
+```
+
+Without it, the monitor logs `shutdown failed … is passwordless sudo set up?`
+and the Pi keeps running (relying on the firmware's own ~85 °C hardware
+throttle/shutdown as the last line of defense). Tune the threshold with the
+`CPU_OVERHEAT_C` env var.
+
 ## Control mapping (from the headset)
 
 | Input                          | Action                                  |
