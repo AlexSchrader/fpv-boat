@@ -66,8 +66,10 @@ The server runs streaming + recording even without the GPIO libs — it just log
 | `/offer`           | WebRTC signaling (POST)                            |
 | `/ws/control`      | Websocket: `{throttle, steer, reverse}` → motors   |
 | `/control_status`  | Last received control values (JSON)                |
-| `/record/start` `/record/stop` | Recording control                      |
+| `/record/start` `/record/stop` | Recording control (start auto-frees space) |
 | `/telemetry`       | Recording state + storage (JSON)                   |
+| `/recordings`      | List clips — name, size, timestamp (JSON)          |
+| `/recordings/download?file=NAME` | Download a clip over HTTP             |
 | `/three.module.js` | Vendored Three.js                                  |
 
 ## Files
