@@ -98,7 +98,6 @@ RECORD_BITRATE=8000000 python3 webrtc_stream.py
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `three.module.js` | Vendored Three.js (served locally, no CDN) |
-| `stream.py` | Legacy MJPEG server (superseded, kept for reference) |
 | `HARDWARE.md` | Wiring, power safety, pin map, watchdog notes |
 | `NETWORKING.md` | Keeping the Pi's IP stable + WiFi power-save fix |
 | `ROADMAP.md` | Project tracks and current-state snapshot |

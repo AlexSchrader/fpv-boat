@@ -24,7 +24,7 @@
   - Gamepad polling via `navigator.getGamepads()` — **currently broken for buttons, see Track A**
   - Debug overlay drawn onto the HUD canvas itself (necessary since HTML overlays aren't visible inside an active VR session)
 - `three.module.js` — vendored Three.js r0.160, served locally to avoid CDN dependency issues in the Quest browser
-- `stream.py` — legacy MJPEG-based server, superseded by `webrtc_stream.py`, can likely be deleted once WebRTC is confirmed fully stable
+- ~~`stream.py`~~ — removed; the legacy MJPEG server was superseded by `webrtc_stream.py` (WebRTC confirmed working in-headset)
 
 **~~Known active bug~~ (RESOLVED):** Gamepad button presses weren't registering via `navigator.getGamepads()` on the Quest. Fixed by reading `session.inputSources` directly (Track A). Controller input is now confirmed working in-headset. See the current mapping in `README.md` / `HARDWARE.md`.
 
@@ -204,6 +204,6 @@ right_motor = throttle - steer
 | `HARDWARE.md` | L298N wiring, power, watchdog, pin map | Active |
 | `.github/workflows/ci.yml` | CI: byte-compile Python + JS syntax check | Active |
 | `three.module.js` | Vendored Three.js | Static, no changes expected |
-| `stream.py` | Legacy MJPEG server | Superseded, candidate for deletion |
+| `NETWORKING.md` | Stable-IP + WiFi power-save notes | Active |
 | `motor_control.py` | Motor GPIO driver (L298N differential thrust + watchdog) | Created; awaiting L298N hardware to go live |
 | `.gitignore` | Repo hygiene | In place |
