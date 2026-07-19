@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import ssl
+import subprocess
 from datetime import datetime
 
 from aiohttp import web
@@ -239,6 +240,45 @@ latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
 from motor_control import MotorController
 motors = MotorController()
 
+# Thermal safety: if the CPU sustains this temperature, shut the Pi down to
+# protect it. The check needs a few consecutive strikes so a transient spike
+# doesn't trigger it. Requires passwordless `sudo shutdown` (see HARDWARE.md).
+CPU_OVERHEAT_C = float(os.environ.get("CPU_OVERHEAT_C", "80"))
+_THERMAL_INTERVAL_S = 3
+_THERMAL_STRIKES = 3
+
+async def thermal_monitor():
+    strikes = 0
+    while True:
+        await asyncio.sleep(_THERMAL_INTERVAL_S)
+        t = _cpu_temp_c()
+        if t is not None and t >= CPU_OVERHEAT_C:
+            strikes += 1
+            print(f"[thermal] {t}C >= {CPU_OVERHEAT_C}C overheat strike {strikes}/{_THERMAL_STRIKES}")
+            if strikes >= _THERMAL_STRIKES:
+                print("[thermal] OVERHEAT — stopping motors and shutting down the Pi")
+                try:
+                    motors.stop()
+                except Exception:
+                    pass
+                global recording, h264_encoder
+                if recording and h264_encoder is not None:
+                    try:
+                        picam2.stop_encoder(h264_encoder)
+                    except Exception:
+                        pass
+                    recording = False
+                try:
+                    subprocess.Popen(["sudo", "shutdown", "-h", "now"])
+                except Exception as e:
+                    print(f"[thermal] shutdown failed ({e}); is passwordless sudo set up?")
+                return
+        else:
+            strikes = 0
+
+async def _on_startup(app):
+    app["thermal_task"] = asyncio.create_task(thermal_monitor())
+
 async def control_ws(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -262,6 +302,7 @@ async def control_status(request):
     return web.json_response(latest_control)
 
 app = web.Application()
+app.on_startup.append(_on_startup)
 app.router.add_post("/offer", offer)
 app.router.add_get("/record/start", record_start)
 app.router.add_get("/record/stop", record_stop)

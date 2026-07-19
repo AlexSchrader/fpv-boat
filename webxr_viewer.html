@@ -281,6 +281,7 @@ const CYAN = '#00e5ff';
 const ORANGE = '#ff7a1a';
 const RED = '#ff2b2b';
 const GREEN = '#22e06b';
+const YELLOW = '#ffd23f';
 const WHITE = '#eef4f5';
 const GHOST = '#3a4650';
 const GHOST_LABEL = 'rgba(255,255,255,0.35)';
@@ -490,8 +491,9 @@ function drawHud() {
   hctx.fillStyle = LABEL_COLOR;
   hctx.fillText('CPU', colR, rowBotLabelY);
 
+  // temp color: white = OK, yellow = caution, red = overheating (Pi auto-shuts down)
   const t = telemetry.cpu_temp_c;
-  const tempColor = (t == null) ? GHOST : (t < 60 ? WHITE : t < 75 ? ORANGE : RED);
+  const tempColor = (t == null) ? GHOST : (t < 70 ? WHITE : t < 80 ? YELLOW : RED);
   hctx.font = '700 15px Orbitron, sans-serif';
   hctx.fillStyle = tempColor;
   hctx.fillText(t != null ? Math.round(t) + '°C' : '--°C', colR, rowBotValY);
