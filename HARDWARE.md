@@ -87,12 +87,12 @@ direction, speed response, and channel independence.
 
 | Input                          | Action                                  |
 | ------------------------------ | --------------------------------------- |
+| Left trigger                   | Throttle (squeeze to go)                |
 | Right thumbstick X             | Steer                                   |
-| Left thumbstick Y (up = ahead) | Throttle                                |
 | A — double-tap                 | Start recording                         |
 | A — single-tap                 | Stop recording                          |
 | X — tap                        | Toggle reverse (inverts throttle)       |
-| B, Y, triggers L / R           | Reserved (unbound)                      |
+| B, Y, right trigger, sticks    | Reserved / unused                       |
 
 > Note: this mapping follows the current build. `ROADMAP.md` Track A describes an
 > earlier scheme (A = record toggle, B = reverse). The code above is canonical;
