@@ -25,10 +25,13 @@ input from the Quest controllers over a websocket to drive the motors.
 | -------------------------------- | ----------------------------------- |
 | Left trigger                     | Throttle (squeeze to go)            |
 | Right thumbstick X               | Steer                               |
-| A — double-tap                   | Start recording                     |
-| A — single-tap                   | Stop recording                      |
+| A — double-tap / single-tap      | Start / stop recording              |
 | X — tap                          | Toggle reverse (inverts throttle)   |
-| B, Y, triggers L / R             | Reserved (unbound)                  |
+| Y — double-tap                   | Toggle cruise (throttle hold)       |
+
+**Cruise:** double-tap Y to lock the current throttle; while cruising, hold Y to
+speed up and hold X to slow down (reverse is locked out). Squeezing the trigger
+past ~50% instantly disengages cruise. `B`, right trigger, and grips are unused.
 
 Steering is **differential thrust** (no rudder): `left = throttle + steer`,
 `right = throttle - steer`.
@@ -81,13 +84,15 @@ RECORD_BITRATE=8000000 python3 webrtc_stream.py
 | Route              | Purpose                                            |
 | ------------------ | -------------------------------------------------- |
 | `/viewer`          | WebXR viewer page                                  |
+| `/clips`           | Recordings manager page (list / download / delete) |
 | `/offer`           | WebRTC signaling (POST)                            |
 | `/ws/control`      | Websocket: `{throttle, steer, reverse}` → motors   |
 | `/control_status`  | Last received control values (JSON)                |
 | `/record/start` `/record/stop` | Recording control (start auto-frees space) |
-| `/telemetry`       | Recording state + storage (JSON)                   |
+| `/telemetry`       | Recording state, storage, CPU temp + load (JSON)   |
 | `/recordings`      | List clips — name, size, timestamp (JSON)          |
 | `/recordings/download?file=NAME` | Download a clip over HTTP             |
+| `/recordings/delete?file=NAME`   | Delete a clip (not the active one)   |
 | `/three.module.js` | Vendored Three.js                                  |
 
 ## Files

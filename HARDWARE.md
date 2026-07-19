@@ -91,8 +91,9 @@ direction, speed response, and channel independence.
 | Right thumbstick X             | Steer                                   |
 | A — double-tap                 | Start recording                         |
 | A — single-tap                 | Stop recording                          |
-| X — tap                        | Toggle reverse (inverts throttle)       |
-| B, Y, right trigger, sticks    | Reserved / unused                       |
+| X — tap                        | Toggle reverse; while cruising, hold = slower |
+| Y — double-tap                 | Toggle cruise; while cruising, hold = faster  |
+| B, right trigger, grips        | Reserved / unused                       |
 
 > Note: this mapping follows the current build. `ROADMAP.md` Track A describes an
 > earlier scheme (A = record toggle, B = reverse). The code above is canonical;

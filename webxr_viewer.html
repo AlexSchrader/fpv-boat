@@ -111,9 +111,12 @@ let lastPingMs = null;
 
 // ---- controller state ----
 // steer: -1 (full left) .. +1 (full right), from the RIGHT thumbstick X
-// throttle: 0 (idle) .. 1 (full), from the LEFT trigger; reverse toggle sends it negative on the wire
+// throttle: 0 (idle) .. 1 (full) effective output; normally the LEFT trigger,
+//           or the held cruiseSpeed while cruise is engaged
 // reverse: toggled by tapping X; inverts throttle direction on the wire
-const control = { throttle: 0, steer: 0, reverse: false, connected: false };
+// cruise: throttle-hold mode (Y double-tap); cruiseSpeed is the held set-speed
+const control = { throttle: 0, steer: 0, reverse: false, connected: false,
+                  cruise: false, cruiseSpeed: 0 };
 
 async function pollTelemetry() {
   const t0 = performance.now();
@@ -169,12 +172,17 @@ function stopRecording()  { fetch('/record/stop').catch(() => {}); }
 //   LEFT  trigger (buttons[0].value) -> throttle (0..1; X toggles reverse to flip it)
 //   RIGHT thumbstick X (axes[2]) -> steer
 //   RIGHT button[4] = A -> double-tap start record / single-tap stop record
-//   LEFT  button[4] = X -> tap toggles reverse
-//   Reserved (ignored): B (right[5]), Y (left[5]), RIGHT trigger, grips, LEFT thumbstick
+//   LEFT  button[4] = X -> tap toggles reverse; while cruising, hold = speed down
+//   LEFT  button[5] = Y -> double-tap toggles cruise; while cruising, hold = speed up
+//   Reserved (ignored): B (right[5]), RIGHT trigger, grips, LEFT thumbstick
 const DEADZONE = 0.08;
 const DOUBLE_TAP_MS = 300;
+const CRUISE_RATE = 0.6;       // set-speed change per second while holding X/Y
+const CRUISE_HOLD_MS = 320;    // must hold Y past this before it ramps (vs double-tap)
 let aPrev = false, aStopTimer = null;
 let xPrev = false;
+let yPrev = false, yLastRise = -1e9, yDownSince = 0;
+let lastPollTs = 0;
 
 function dz(v) { return Math.abs(v) < DEADZONE ? 0 : v; }
 
@@ -194,10 +202,11 @@ function readPads() {
       throttle: left && left.buttons[0] ? dz(left.buttons[0].value) : 0,
       a: !!(right && right.buttons[4] && right.buttons[4].pressed),
       x: !!(left  && left.buttons[4]  && left.buttons[4].pressed),
+      y: !!(left  && left.buttons[5]  && left.buttons[5].pressed),
     };
   }
   // Desktop fallback: standard gamepad (right stick axis2 = steer, left trigger
-  // button6 = throttle, A=0, X=2)
+  // button6 = throttle, A=0, X=2, Y=3)
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   const gp = pads && [...pads].find(p => p);
   if (!gp) return null;
@@ -206,38 +215,72 @@ function readPads() {
     throttle: dz(gp.buttons[6] ? gp.buttons[6].value : 0),
     a: !!(gp.buttons[0] && gp.buttons[0].pressed),
     x: !!(gp.buttons[2] && gp.buttons[2].pressed),
+    y: !!(gp.buttons[3] && gp.buttons[3].pressed),
   };
 }
 
 function pollControllers(nowMs) {
+  const dt = lastPollTs ? Math.min(0.1, (nowMs - lastPollTs) / 1000) : 0;
+  lastPollTs = nowMs;
+
   const pad = readPads();
-  if (!pad) { control.connected = false; control.throttle = 0; control.steer = 0; return; }
+  if (!pad) {
+    control.connected = false; control.throttle = 0; control.steer = 0;
+    aPrev = xPrev = yPrev = false;
+    return;
+  }
   control.connected = true;
-  control.throttle = pad.throttle;
   control.steer = pad.steer;
+  const trig = pad.throttle;
 
   // A: rising edge. Double-tap within window -> start; a lone tap -> stop.
   if (pad.a && !aPrev) {
     if (aStopTimer !== null) {
-      // second tap inside the window -> double-tap -> START, cancel pending stop
       clearTimeout(aStopTimer);
       aStopTimer = null;
       startRecording();
     } else {
-      // first tap -> tentatively a single tap (STOP) unless a second arrives
       aStopTimer = setTimeout(() => { aStopTimer = null; stopRecording(); }, DOUBLE_TAP_MS);
     }
   }
   aPrev = pad.a;
 
-  // X: rising edge toggles reverse
-  if (pad.x && !xPrev) control.reverse = !control.reverse;
+  // Y: double-tap toggles cruise. On engage, capture the current throttle.
+  if (pad.y && !yPrev) {
+    yDownSince = nowMs;
+    if (nowMs - yLastRise < DOUBLE_TAP_MS) {
+      control.cruise = !control.cruise;
+      if (control.cruise) { control.cruiseSpeed = trig; control.reverse = false; }
+      yLastRise = -1e9;           // consumed; this press won't ramp
+    } else {
+      yLastRise = nowMs;
+    }
+  }
+
+  // Safety: a real trigger squeeze breaks cruise and hands back manual control.
+  if (control.cruise && trig > 0.5) control.cruise = false;
+
+  if (control.cruise) {
+    // hold Y -> faster, hold X -> slower (Y must be held past the double-tap window)
+    const yHeld = pad.y && yLastRise > 0 && (nowMs - yDownSince) > CRUISE_HOLD_MS;
+    if (yHeld)  control.cruiseSpeed = Math.min(1, control.cruiseSpeed + CRUISE_RATE * dt);
+    if (pad.x)  control.cruiseSpeed = Math.max(0, control.cruiseSpeed - CRUISE_RATE * dt);
+    control.reverse = false;        // reverse locked out while cruising
+    control.throttle = control.cruiseSpeed;
+  } else {
+    control.throttle = trig;
+    // X: rising edge toggles reverse (only when not cruising)
+    if (pad.x && !xPrev) control.reverse = !control.reverse;
+  }
+
   xPrev = pad.x;
+  yPrev = pad.y;
 }
 
 const CYAN = '#00e5ff';
 const ORANGE = '#ff7a1a';
 const RED = '#ff2b2b';
+const GREEN = '#22e06b';
 const WHITE = '#eef4f5';
 const GHOST = '#3a4650';
 const GHOST_LABEL = 'rgba(255,255,255,0.35)';
@@ -245,7 +288,8 @@ const LABEL_COLOR = 'rgba(255,255,255,0.4)';
 
 // revState: undefined = no badge; 'off' = greyed REV; 'on' = neon-orange REV
 // showLR: true = draw L/R markers at the arc ends (steer gauge)
-function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR) {
+// cruiseState: undefined = none; 'off' = greyed CRUISE; 'on' = green CRUISE
+function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR, cruiseState) {
   hctx.beginPath();
   hctx.arc(cx, cy, radius, Math.PI * 0.82, Math.PI * 0.18, false);
   hctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -268,13 +312,25 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR) {
   const pctText = ghost ? '--%' : Math.round(value01*100) + '%';
   hctx.fillText(pctText, cx, cy - 6);
 
-  // REV badge, centered between the % and the label (throttle gauge only) so a
-  // widening % can't push it over the arc
-  if (revState) {
-    hctx.textAlign = 'center';
-    hctx.font = '700 12px Orbitron, sans-serif';
-    hctx.fillStyle = revState === 'on' ? ORANGE : GHOST;
-    hctx.fillText('REV', cx, cy + 14);
+  // CRUISE + REV badges, centered as a row between the % and the label so a
+  // widening % can't push them over the arc (throttle gauge only)
+  if (cruiseState || revState) {
+    hctx.font = '700 11px Orbitron, sans-serif';
+    hctx.textAlign = 'left';
+    const gap = 7;
+    const cW = cruiseState ? hctx.measureText('CRUISE').width : 0;
+    const rW = revState ? hctx.measureText('REV').width : 0;
+    const totalW = cW + rW + (cruiseState && revState ? gap : 0);
+    let x = cx - totalW / 2;
+    if (cruiseState) {
+      hctx.fillStyle = cruiseState === 'on' ? GREEN : GHOST;
+      hctx.fillText('CRUISE', x, cy + 14);
+      x += cW + gap;
+    }
+    if (revState) {
+      hctx.fillStyle = revState === 'on' ? ORANGE : GHOST;
+      hctx.fillText('REV', x, cy + 14);
+    }
   }
 
   hctx.textAlign = 'center';
@@ -399,44 +455,60 @@ function drawHud() {
   hctx.fillStyle = GHOST;
   hctx.fillText('--%', colR, rowTopValY + 4);
 
-  // --- REC (bottom-left) ---
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('REC', colL + 14, rowBotLabelY);
-  hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.15)';
+  // --- REC + STORAGE (bottom-left, two compact lines) ---
+  // REC line
+  hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.2)';
   hctx.beginPath();
   hctx.arc(colL + 4, rowBotLabelY - 4, 5, 0, Math.PI*2);
   hctx.fill();
-  hctx.font = '600 16px Orbitron, sans-serif';
-  hctx.fillStyle = telemetry.recording ? RED : WHITE;
-  hctx.fillText(telemetry.recording ? 'ON AIR' : 'OFF', colL, rowBotValY);
-
-  // --- STORAGE (bottom-right) ---
   hctx.font = '600 12px Rajdhani, sans-serif';
   hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('STORAGE', colR, rowBotLabelY);
+  hctx.fillText('REC', colL + 15, rowBotLabelY);
+  hctx.font = '700 13px Orbitron, sans-serif';
+  hctx.fillStyle = telemetry.recording ? RED : WHITE;
+  hctx.fillText(telemetry.recording ? 'ON AIR' : 'OFF', colL + 46, rowBotLabelY);
 
+  // STORAGE line (bar + used/total)
   const usedPct = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
     ? Math.max(0, Math.min(1, 1 - (telemetry.storage_free_gb / telemetry.storage_total_gb)))
     : 0;
-  const sbarW = 90, sbarH = 5;
-  hctx.fillStyle = 'rgba(255,255,255,0.12)';
-  hctx.fillRect(colR, rowBotValY - 12, sbarW, sbarH);
+  const sbarW = 44, sbarH = 5;
+  hctx.fillStyle = 'rgba(255,255,255,0.15)';
+  hctx.fillRect(colL, rowBotValY - 8, sbarW, sbarH);
   hctx.fillStyle = CYAN;
-  hctx.fillRect(colR, rowBotValY - 12, sbarW * usedPct, sbarH);
-
+  hctx.fillRect(colL, rowBotValY - 8, sbarW * usedPct, sbarH);
   const usedGb = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
     ? Math.round(telemetry.storage_total_gb - telemetry.storage_free_gb)
     : '--';
   const totalGb = telemetry.storage_total_gb !== null ? Math.round(telemetry.storage_total_gb) : 128;
-  hctx.font = '600 13px Rajdhani, sans-serif';
+  hctx.font = '600 12px Rajdhani, sans-serif';
   hctx.fillStyle = WHITE;
-  hctx.fillText(usedGb + '/' + totalGb + 'GB', colR, rowBotValY + 8);
+  hctx.fillText(usedGb + '/' + totalGb + 'GB', colL + sbarW + 8, rowBotValY);
+
+  // --- CPU (bottom-right) ---
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('CPU', colR, rowBotLabelY);
+
+  const t = telemetry.cpu_temp_c;
+  const tempColor = (t == null) ? GHOST : (t < 60 ? WHITE : t < 75 ? ORANGE : RED);
+  hctx.font = '700 15px Orbitron, sans-serif';
+  hctx.fillStyle = tempColor;
+  hctx.fillText(t != null ? Math.round(t) + '°C' : '--°C', colR, rowBotValY);
+
+  const lf = (telemetry.cpu_load_frac != null) ? Math.max(0, Math.min(1, telemetry.cpu_load_frac)) : 0;
+  const lbarW = 58, lbarH = 5;
+  hctx.fillStyle = 'rgba(255,255,255,0.15)';
+  hctx.fillRect(colR + 54, rowBotValY - 8, lbarW, lbarH);
+  hctx.fillStyle = lf < 0.7 ? CYAN : lf < 0.9 ? ORANGE : RED;
+  hctx.fillRect(colR + 54, rowBotValY - 8, lbarW * lf, lbarH);
 
   const ghostCtl = !control.connected;
   const gaugeY = H - 165;
+  // REV greys out while cruising (reverse is locked out); CRUISE lights green when engaged
   drawGauge(W/2 - 120, gaugeY, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
-            'THROTTLE', control.reverse ? 'on' : 'off');
+            'THROTTLE', (control.reverse && !control.cruise) ? 'on' : 'off',
+            false, control.cruise ? 'on' : 'off');
   drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
 
   hudTexture.needsUpdate = true;
@@ -454,8 +526,9 @@ let lastHudSig = '';
 function hudSignature() {
   return [
     control.throttle.toFixed(2), control.steer.toFixed(2),
-    control.reverse, control.connected,
+    control.reverse, control.connected, control.cruise,
     telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
+    telemetry.cpu_temp_c, telemetry.cpu_load_frac,
     linkState, lastPingMs
   ].join('|');
 }
