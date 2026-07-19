@@ -45,7 +45,8 @@ python3 webrtc_stream.py          # serves HTTPS on :5000 when the cert is prese
 
 Then in the Quest browser open **`https://<pi-ip>:5000/viewer`**, accept the
 self-signed cert warning, and hit **Enter VR**. (Pi is `FPV-boat`, currently
-`10.0.0.26` — see the networking notes in `ROADMAP.md`.)
+`10.0.0.26` — see `NETWORKING.md` for keeping the IP stable and avoiding SSH
+drops.)
 
 For smooth motor PWM once the L298N is wired, run with the pigpio pin factory:
 
@@ -79,6 +80,7 @@ The server runs streaming + recording even without the GPIO libs — it just log
 | `three.module.js` | Vendored Three.js (served locally, no CDN) |
 | `stream.py` | Legacy MJPEG server (superseded, kept for reference) |
 | `HARDWARE.md` | Wiring, power safety, pin map, watchdog notes |
+| `NETWORKING.md` | Keeping the Pi's IP stable + WiFi power-save fix |
 | `ROADMAP.md` | Project tracks and current-state snapshot |
 
 ## Bench-testing the motors
