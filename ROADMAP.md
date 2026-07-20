@@ -293,7 +293,9 @@ The server already tracks CPU temp for the auto-shutdown safety feature (`CPU_OV
 
 **Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`).
 
-### J.2 — Low-Storage Warning Badge
+### J.2 — Low-Storage Warning Badge — ✅ DONE
+
+> Shipped: `/telemetry` exposes `recordings_min_free_gb`; the HUD flashes an amber **LOW STORAGE** badge below the top card once free space drops below that auto-cleanup floor.
 
 Storage-remaining is already shown as a bar. Add a flashing/highlighted "LOW STORAGE" badge that appears once free space crosses the same threshold that triggers auto-cleanup, so the pilot gets a heads-up rather than just watching a bar quietly shrink.
 
