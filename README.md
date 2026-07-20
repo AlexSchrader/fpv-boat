@@ -105,6 +105,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `webrtc_stream.py` | Main server: WebRTC video, recording, telemetry, control websocket, optional HTTPS |
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
+| `clips.html` | Recordings manager page (served at `/clips`) |
 | `three.module.js` | Vendored Three.js (served locally, no CDN) |
 | `HARDWARE.md` | Wiring, power safety, pin map, watchdog notes |
 | `NETWORKING.md` | Keeping the Pi's IP stable + WiFi power-save fix |

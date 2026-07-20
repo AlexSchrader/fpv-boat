@@ -12,7 +12,8 @@ A Meta Quest 2 FPV-controlled RC boat. A Raspberry Pi Zero 2 W on the boat strea
 - SSH hostname: `FPV-boat.local` (fall back to IP via `hostname -I` on the Pi if `.local` resolution fails — this has happened before, especially from Windows clients).
 - The Pi's IP is DHCP-assigned and **has changed mid-project before**. Don't hardcode IPs in documentation or assume a fixed address without checking. See `NETWORKING.md`.
 - The server serves **HTTPS with a self-signed cert** (`~/cert.pem`, `~/key.pem`) when those files exist — this is **required** for WebXR's `navigator.xr` to be available in the Quest Browser. It falls back to plain HTTP only when no cert is present (fine for desktop testing, but VR won't start). Keep the cert path working; don't remove HTTPS support.
-- Camera: Arducam Camera Module 3 Wide (Sony IMX708), via `picamera2`/`libcamera`. Resolution and record bitrate are tunable via env vars (`RECORD_WIDTH/HEIGHT`, `STREAM_WIDTH/HEIGHT`, `RECORD_BITRATE`); defaults are the known-good 1280×720 — higher has overloaded the encoder before.
+- Camera: Arducam Camera Module 3 Wide (Sony IMX708), via `picamera2`/`libcamera`. Resolution and record bitrate are tunable via env vars (`RECORD_WIDTH/HEIGHT`, `STREAM_WIDTH/HEIGHT`, `RECORD_BITRATE`). The **streamed (lores) default is 960×540** to limit CPU heat — aiortc software-encodes that stream, so its resolution is the main heat lever; **recording (main) stays 1280×720** on the hardware encoder. Higher stream resolutions have overloaded the Pi before.
+- **Thermal safety:** the server runs a background monitor that **shuts the Pi down** if CPU temp holds ≥ `CPU_OVERHEAT_C` (default 80 °C) for ~6–9 s. Needs passwordless `sudo shutdown` (see `HARDWARE.md`). The HUD temp is color-coded white/yellow(≥70)/red(≥80).
 
 ## Architecture
 
