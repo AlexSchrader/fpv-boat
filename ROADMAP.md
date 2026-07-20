@@ -331,7 +331,9 @@ Once the GPS module is wired in (see the M10-25Q module covering both compass an
 
 **Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`), depends on GPS wiring (UART, separate from the I2C compass half of the same module).
 
-### J.8 — ARMED / FAILSAFE Watchdog Indicator (priority — safety-relevant)
+### J.8 — ARMED / FAILSAFE Watchdog Indicator (priority — safety-relevant) — ✅ DONE
+
+> Shipped: `motor_control.py` tracks an `armed` flag (True on `set_drive`, False when the watchdog trips or on `stop()`), exposed via `/telemetry` (`armed`). The HUD shows a prominent top-center **ARMED** (cyan, steady) / **FAILSAFE** (red, flashing) pill. Covered by unit tests.
 
 **This is the one to prioritize over the rest of this track.** Right now the HUD shows link quality (ping/bars), but there's a meaningful difference between "signal's a little slow" and "the watchdog is about to zero the throttle from lost connection" — and that distinction isn't visible at a glance.
 

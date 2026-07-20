@@ -403,8 +403,7 @@ function roundedPanel(x, y, w, h, r) {
   hctx.stroke();
 }
 
-function fillRoundRect(x, y, w, h, r, fill) {
-  hctx.fillStyle = fill;
+function roundRectPath(x, y, w, h, r) {
   hctx.beginPath();
   hctx.moveTo(x + r, y);
   hctx.arcTo(x + w, y, x + w, y + h, r);
@@ -412,6 +411,11 @@ function fillRoundRect(x, y, w, h, r, fill) {
   hctx.arcTo(x, y + h, x, y, r);
   hctx.arcTo(x, y, x + w, y, r);
   hctx.closePath();
+}
+
+function fillRoundRect(x, y, w, h, r, fill) {
+  hctx.fillStyle = fill;
+  roundRectPath(x, y, w, h, r);
   hctx.fill();
 }
 
@@ -419,6 +423,31 @@ function drawHud() {
   hctx.clearRect(0, 0, hudCanvasEl.width, hudCanvasEl.height);
   hctx.textBaseline = 'alphabetic';
   const W = hudCanvasEl.width, H = hudCanvasEl.height;
+
+  // ---- ARMED / FAILSAFE (prominent, top-center) ----
+  // Driven by the server-side motor watchdog (telemetry.armed), not ping.
+  if (telemetry.armed === true || telemetry.armed === false) {
+    const armed = telemetry.armed === true;
+    const label = armed ? 'ARMED' : 'FAILSAFE';
+    hctx.font = '700 20px Orbitron, sans-serif';
+    const pw = hctx.measureText(label).width + 46, ph = 34, px = W/2 - pw/2, py = 28;
+    let bg, edge, fg;
+    if (armed) {
+      bg = 'rgba(6,40,46,0.72)'; edge = CYAN; fg = CYAN;
+    } else {
+      const flash = Math.floor(performance.now() / 350) % 2 === 0;
+      bg = flash ? 'rgba(255,43,43,0.92)' : 'rgba(90,15,15,0.72)';
+      edge = RED; fg = WHITE;
+    }
+    fillRoundRect(px, py, pw, ph, 9, bg);
+    hctx.lineWidth = 2; hctx.strokeStyle = edge;
+    roundRectPath(px, py, pw, ph, 9); hctx.stroke();
+    hctx.fillStyle = fg;
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText(label, W/2, py + ph/2 + 1);
+    hctx.textBaseline = 'alphabetic';
+  }
 
   // ---- unified top card (compact) ----
   const cardW = 430, cardH = 108;
@@ -554,7 +583,9 @@ function hudSignature() {
     control.reverse, control.connected, control.cruise,
     telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
     telemetry.cpu_temp_c, telemetry.cpu_load_frac,
-    linkState, lastPingMs, videoFps
+    linkState, lastPingMs, videoFps, telemetry.armed,
+    // flash phase while in failsafe so the indicator blinks via the dirty-check
+    telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0
   ].join('|');
 }
 

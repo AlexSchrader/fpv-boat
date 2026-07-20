@@ -56,6 +56,9 @@ class MotorController:
         self._watchdog_s = watchdog_s
         self._timer = None
         self._lock = threading.Lock()
+        # armed = a set_drive arrived within the watchdog window (control link
+        # live). Goes False when the watchdog trips or we stop() -> FAILSAFE.
+        self.armed = False
         try:
             from gpiozero import Motor
             self._left = Motor(forward=LEFT_IN1, backward=LEFT_IN2, enable=LEFT_EN, pwm=True)
@@ -72,12 +75,14 @@ class MotorController:
         with self._lock:
             self._apply(left, right)
             self._kick_watchdog()
+            self.armed = True
 
     def stop(self):
         """Immediately zero both motors and disarm the watchdog."""
         with self._lock:
             self._cancel_watchdog()
             self._apply(0.0, 0.0)
+            self.armed = False
 
     # ---- internals ----
     def _apply(self, left, right):
@@ -104,6 +109,7 @@ class MotorController:
         with self._lock:
             self._apply(0.0, 0.0)
             self._timer = None
+            self.armed = False   # watchdog tripped -> FAILSAFE
 
 
 if __name__ == "__main__":
