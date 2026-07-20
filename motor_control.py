@@ -35,6 +35,15 @@ def _clamp(v, lo=-1.0, hi=1.0):
     return lo if v < lo else hi if v > hi else v
 
 
+def differential_mix(throttle, steer):
+    """Differential-thrust mix: (left, right) each clamped to [-1, 1].
+
+    left = throttle + steer, right = throttle - steer. Pure function so it can
+    be unit-tested without any GPIO (see test_motor_control.py).
+    """
+    return _clamp(throttle + steer), _clamp(throttle - steer)
+
+
 class MotorController:
     """Differential-thrust driver: set_drive(throttle, steer) -> two L298N channels.
 
@@ -59,8 +68,7 @@ class MotorController:
 
     def set_drive(self, throttle, steer):
         """Apply differential thrust from a throttle/steer pair (-1..1 each)."""
-        left = _clamp(throttle + steer)
-        right = _clamp(throttle - steer)
+        left, right = differential_mix(throttle, steer)
         with self._lock:
             self._apply(left, right)
             self._kick_watchdog()

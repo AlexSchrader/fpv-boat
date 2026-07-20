@@ -21,6 +21,10 @@ jobs:
       - name: Byte-compile Python
         run: python -m py_compile *.py
 
+      # Unit tests for the motor math (pure logic, no GPIO needed).
+      - name: Run unit tests
+        run: python -m unittest discover -p 'test_*.py' -v
+
       # Extract the viewer's ES module and syntax-check it with Node.
       - name: Check viewer module JS
         run: |
