@@ -8,7 +8,9 @@
 
 **Hardware in hand and wired:** Raspberry Pi Zero 2 W (`FPV-boat` hostname), Arducam Camera Module 3 Wide (IMX708, CSI-connected), heatsink installed, 128GB microSD as boot/storage drive.
 
-**Hardware NOT yet in hand / not yet wired:** L298N dual H-bridge motor driver, DPDT failsafe switch, PCA9685 + pan/tilt servos (ordered, not confirmed arrived/tested), LiPo + buck converters + enclosures (ordered, build not started).
+**Hardware in hand, not yet wired:** L298N dual H-bridge motor driver (BOJACK), DPDT failsafe switch (Nilight 6-pin ON/OFF/ON, waterproof boots), MP1584EN buck converters (3-pack), ShareGoo 8-LED kit (4 white front / 4 red rear), SG90 micro servos (4ct), PG7 cable glands, IP65 junction boxes, BrosTrend AC5L USB WiFi adapter (+ micro-USB OTG). **→ Track B (motor control) is fully unblocked.**
+
+**Still needed:** PCA9685 16-ch PWM servo driver (for pan/tilt head-tracking — servos alone aren't enough), LiPo battery, INA219 (battery/current sensing). Water sensor **not** needed — will tap the boat's existing stock hull sensor.
 
 **Software running today, confirmed working:**
 - `webrtc_stream.py` — aiohttp server on the Pi, HTTPS (self-signed cert), serves:
@@ -66,7 +68,7 @@
 
 **Independent of:** Controller input fully working (can bench-test with hardcoded throttle/steer values first), video/HUD state.
 
-**Blocked on:** L298N dual H-bridge motor driver arriving (not yet ordered/received as of this doc — confirm status). DPDT failsafe switch also needed before this touches the actual boat, though GPIO-level bench testing of the L298N itself doesn't require the switch.
+**~~Blocked on~~ UNBLOCKED:** L298N and DPDT failsafe switch are both in hand. The differential-thrust driver + watchdog software (`motor_control.py`) is already written and bench-testable (`python3 motor_control.py`). Remaining work is hardware: wire the L298N per `HARDWARE.md`, bench-test with motors off the boat, then wire the DPDT failsafe before any water testing.
 
 **Design already locked in:**
 ```
