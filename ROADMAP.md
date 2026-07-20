@@ -101,7 +101,9 @@ right_motor = throttle - steer
 **What to try, roughly in order of effort:**
 1. **Confirm/verify hardware encoding is actually active.** Check the `aiortc` `h264.py` codec file on the Pi for the `h264_v4l2m2m` patch and confirm no "falling back to libx264" warning appears in server logs when a client connects.
 2. **Resolution/bitrate tuning** — 1280x720 is the known-good baseline. Any increase (tried 1080p30 earlier, caused visible degradation from CPU/encoder overload) should be tested incrementally, watching Pi CPU usage (`htop`) live while streaming, not just eyeballing the result.
-3. ~~Consider exposing resolution/bitrate as environment variables~~ ✅ **DONE** — `RECORD_WIDTH/HEIGHT`, `STREAM_WIDTH/HEIGHT`, `RECORD_BITRATE` env vars (defaults = the known-good 1280×720). See `README.md` → Tuning. Items 1 (verify hardware encoding) and 2 (actually pushing resolution) still need on-Pi testing.
+3. ~~Consider exposing resolution/bitrate as environment variables~~ ✅ **DONE** — `RECORD_WIDTH/HEIGHT`, `STREAM_WIDTH/HEIGHT`, `RECORD_BITRATE` env vars. Stream default lowered to **960×540** to cut CPU heat (aiortc software-encodes the stream); recording stays 720p on the hardware encoder. See `README.md` → Tuning.
+
+> Update from the code: item 1 is **answered** — the WebRTC path captures raw `lores` frames and lets **aiortc software-encode** them, so the stream is *not* hardware-encoded. True hardware WebRTC encoding would mean feeding the Pi's H.264 encoder output into aiortc (a real rework, not a config flag). Also added: **thermal auto-shutdown** (`CPU_OVERHEAT_C`, default 80 °C) and CPU temp/load + video-FPS on the HUD.
 
 **Files touched:** `webrtc_stream.py`, possibly the installed `aiortc` package files directly (document any such patches clearly since they don't survive a `pip install --upgrade`).
 
@@ -185,7 +187,7 @@ right_motor = throttle - steer
 **Independent of:** All other tracks — these are intentionally last.
 
 1. **Pan/tilt camera + head tracking** — PCA9685 + 2x SG90 servos, WebXR head quaternion → websocket → servo angles. Blocked on servo hardware being confirmed in-hand and bench-tested (per earlier note, this hardware may still be pending).
-2. **Cruise control** — X or Y button (currently reserved/unused) engages a throttle-hold mode: locks current throttle value, steer stays live, any throttle input or reverse-toggle auto-disengages it as a safety default. Build this into the same control-handling code as Track A once buttons are working.
+2. ~~**Cruise control**~~ ✅ **DONE** — Y double-tap toggles throttle-hold (captures current throttle); while cruising, hold Y to speed up / hold X to slow down, steer stays live, reverse is locked out. A fresh trigger squeeze past ~50% disengages (safety). CRUISE badge on the throttle gauge (green when active). Client-side in `webxr_viewer.html`.
 3. **Obstacle avoidance** — HC-SR04 ultrasonic sensor, auto-stop/steer-away logic.
 4. **Motor/driver upgrade** — 380-size motor + BTS7960 or dual DRV8871 driver, only after the stock-motor + L298N version is proven reliable.
 5. **Raspberry Pi AI Camera (IMX500)** — drop-in swap for the current camera module (same CSI mount), enables on-sensor AI inference without taxing the Pi's CPU.
