@@ -256,7 +256,9 @@ right_motor = throttle - steer
 
 **Files touched:** `webrtc_stream.py`, `webxr_viewer.html`.
 
-### I.5 — Spectator Page
+### I.5 — Spectator Page — ✅ DONE (v1)
+
+> Shipped: `watch.html` served at `/watch` — a self-contained flat page with the same WebRTC video connection and a clean telemetry overlay (ARMED/FAILSAFE, ping/fps, CPU temp, REC, storage). Built standalone (DOM overlay, no changes to `webxr_viewer.html`) to stay safe without a headset to re-test the VR viewer. **Future:** factor the canvas HUD-draw code into a shared module both pages import, for a pixel-identical HUD — deferred until it can be headset-tested.
 
 **Goal:** Let a friend watch the live feed + HUD from a phone browser without needing the Quest-cast workflow.
 

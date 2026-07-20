@@ -88,6 +88,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | ------------------ | -------------------------------------------------- |
 | `/viewer`          | WebXR viewer page                                  |
 | `/clips`           | Recordings manager page (list / download / delete) |
+| `/watch`           | Flat spectator page — live feed + telemetry (no VR) |
 | `/offer`           | WebRTC signaling (POST)                            |
 | `/ws/control`      | Websocket: `{throttle, steer, reverse}` → motors   |
 | `/control_status`  | Last received control values (JSON)                |
@@ -106,6 +107,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `clips.html` | Recordings manager page (served at `/clips`) |
+| `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |
 | `three.module.js` | Vendored Three.js (served locally, no CDN) |
 | `HARDWARE.md` | Wiring, power safety, pin map, watchdog notes |
 | `NETWORKING.md` | Keeping the Pi's IP stable + WiFi power-save fix |
