@@ -196,6 +196,153 @@ right_motor = throttle - steer
 
 ---
 
+## Track I — Lights, Sensors, Spectator Page, Tests
+
+**Goal:** A batch of independent, additive features — none of these block each other or anything already built. Pick any one and go.
+
+### I.1 — Running Lights (dual-group, reverse-linked)
+
+**Hardware:** ShareGoo 8-LED kit (4 white "headlight" LEDs, 4 red "taillight" LEDs, individual leads, resistors pre-wired into the kit). Wire as **two independently switched groups**, not one:
+- White group → one logic-level MOSFET (e.g. IRLZ44N) or small relay, gate/coil driven by a GPIO output pin. Power comes from the LiPo/buck-converter rail, not directly from the GPIO pin.
+- Red group → a second MOSFET/relay on its own GPIO pin.
+
+**Control mapping:**
+- **B tap** (currently unused) → toggle white front lights on/off
+- **B hold (~0.5s)** → cycle white lights: steady → strobe → off
+- **Red rear lights are NOT manually controlled** — wire their GPIO output to mirror the existing `reverse` boolean already tracked in the control state. They light up automatically whenever reverse is toggled, functioning like real reverse/brake lights. No new input needed for this half.
+
+**Software:** New `lights_control.py`, mirroring the structure of `motor_control.py` — a small class/module exposing `set_front(mode)` and `set_rear(bool)`, called from the same place `webrtc_stream.py` already handles `/ws/control` messages (rear from `reverse`, front from a new field the viewer sends on B press).
+
+**HUD:** Add a small `LIGHTS` badge next to the existing `REC`/`REV` badges showing front-light state (off / steady / strobe). Rear lights don't need a badge since they're just a mirror of the existing REV badge.
+
+### I.2 — Water-Sensor-Aware Auto-Record
+
+**Goal:** Recording starts on throttle, stops on **either** idle timeout **or** the boat coming out of the water — whichever happens first.
+
+**Hardware:** A basic digital immersion/water sensor module (~$2-3, three pins: VCC, GND, digital OUT — reads HIGH/LOW based on whether its exposed contacts are wet). Wire OUT to a spare GPIO input pin.
+
+**Software:**
+1. Poll the sensor GPIO alongside the existing telemetry loop.
+2. Debounce it — require a couple continuous seconds of "dry" reading before treating it as "out of water," so a wave or splash doesn't falsely trigger a stop.
+3. Auto-stop logic becomes: stop recording if `(idle_seconds > IDLE_TIMEOUT) OR (dry_seconds > DRY_TIMEOUT)`.
+4. Expose the raw sensor state on `/telemetry` too (`in_water: bool`) — useful for debugging and could eventually feed a HUD indicator.
+
+**Files touched:** `webrtc_stream.py` (new sensor poll + auto-record logic).
+
+### I.3 — Real Battery Telemetry via INA219
+
+**Goal:** Replace the `BATTERY --%` placeholder with a real reading, and get current draw as a bonus.
+
+**Hardware:** INA219 breakout board (~$5-8, I2C: SDA/SCL/VCC/GND). One chip gives both voltage and current draw — the current reading doubles as basic motor health monitoring (a sudden spike suggests something's binding or stalled).
+
+**Software:**
+1. Add `battery_voltage`, `battery_percent`, and `current_draw_a` fields to `/telemetry`.
+2. Percent-from-voltage: rough linear approximation is fine to start (2S LiPo: ~8.4V full, ~6.4V empty), though real LiPo discharge curves aren't linear — don't over-engineer this initially.
+3. Update `drawHud()` in `webxr_viewer.html` to render the real value — the layout position for battery already exists, just swap the ghosted placeholder for live data.
+
+**Files touched:** `webrtc_stream.py`, `webxr_viewer.html`.
+
+### I.4 — Heading via QMC5883L Magnetometer
+
+**Goal:** A real compass heading, since it pairs naturally with the speed/heading placeholders already sketched into the original HUD mockup.
+
+**Hardware:** Search **"GY-271 QMC5883L compass module"** — commonly ~$6-9, I2C interface, can share the Pi's I2C bus alongside the INA219 (different I2C addresses, no conflict).
+
+**Software:**
+1. Add `heading_deg` to `/telemetry`.
+2. HUD: small compass readout or rotating needle graphic — this is a good candidate to finally light up the "HEADING — planned" ghost placeholder that's been sitting dimmed in the HUD since the original mockup.
+
+**Files touched:** `webrtc_stream.py`, `webxr_viewer.html`.
+
+### I.5 — Spectator Page
+
+**Goal:** Let a friend watch the live feed + HUD from a phone browser without needing the Quest-cast workflow.
+
+**What to do:**
+1. New route `/watch` serving a stripped-down variant of the viewer: same WebRTC video connection and HUD canvas drawing logic as `webxr_viewer.html`, but with the WebXR session code (`Enter VR` button, `inputSources` polling, head-lock plane logic) removed — just a flat 2D page showing the video + HUD.
+2. Reuse as much of the existing HUD-drawing code as reasonably possible rather than duplicating it — consider whether the HUD draw function could be factored into a shared JS file both pages import, instead of copy-pasting it into a second HTML file.
+
+**Files touched:** New `watch.html` (or similar), new route in `webrtc_stream.py`, possible refactor of shared HUD code out of `webxr_viewer.html`.
+
+### I.6 — Unit Tests for Motor Math
+
+**Goal:** Cheap, meaningful test coverage on the one piece of this project that's pure, deterministic logic.
+
+**What to do:**
+1. Test the differential-thrust calculation directly: `left = throttle + steer`, `right = throttle - steer`, both clamped to `[-1, 1]`. Cover edge cases — full throttle + full steer (should clamp), zero throttle with steer (pivot turn), negative throttle (reverse).
+2. Test the exponential throttle curve function in isolation.
+3. Wire into the existing CI workflow (`.github/workflows/ci.yml`) so these run on every push/PR alongside the current syntax checks.
+
+**Files touched:** New `test_motor_control.py` (or similar), `.github/workflows/ci.yml`.
+
+---
+
+## Track J — Additional HUD Telemetry
+
+**Goal:** Surface data that's already being collected (or nearly free to collect) but isn't shown on the HUD yet, plus a couple of genuinely important safety-visibility additions.
+
+**Independent of:** Everything else — these are additive HUD elements, and several depend only on data the server already has.
+
+### J.1 — CPU Temperature Readout — ✅ DONE
+
+> Shipped: `/telemetry` exposes `cpu_temp_c` / `cpu_load` / `cpu_load_frac`, and the HUD shows a color-coded CPU readout (white / yellow ≥70 °C / red ≥80 °C) plus a load bar, next to the auto-shutdown at `CPU_OVERHEAT_C`. Original intent below.
+
+The server already tracks CPU temp for the auto-shutdown safety feature (`CPU_OVERHEAT_C` env var), but it's never surfaced to the pilot. Add it to `/telemetry` (`cpu_temp_c`) and render a small readout on the HUD — ideally the number turns amber/red as it approaches the shutdown threshold, so an unexpected shutdown mid-run doesn't come as a total surprise.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`).
+
+### J.2 — Low-Storage Warning Badge
+
+Storage-remaining is already shown as a bar. Add a flashing/highlighted "LOW STORAGE" badge that appears once free space crosses the same threshold that triggers auto-cleanup, so the pilot gets a heads-up rather than just watching a bar quietly shrink.
+
+**Files touched:** `webxr_viewer.html` (`drawHud`).
+
+### J.3 — Low-Battery Visual Alert
+
+Once real battery telemetry exists (Track I.3), don't just show a static percentage — flash the battery readout (or the whole HUD card border) red/amber once it crosses a threshold (~20%). A passive number is easy to zone out on mid-flight; a visual state change isn't.
+
+**Files touched:** `webxr_viewer.html` (`drawHud`), depends on Track I.3 existing first.
+
+### J.4 — In-Water / Beached Badge
+
+Since the stock hull water sensor is already being tapped for auto-record (Track I.2), showing its live state on the HUD is nearly free — a small "IN WATER" / "BEACHED" badge doubles as a sanity check independent of the auto-record logic itself.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry` already gains `in_water` from I.2), `webxr_viewer.html` (`drawHud`).
+
+### J.5 — Motor Current Draw
+
+Once the INA219 is wired in (Track I.3) it reports current draw in addition to voltage. Show this separately from battery % — a live spike in current draw is an early warning for a fouled prop, something jammed, or the boat running aground, independent of how much charge is left.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`), depends on Track I.3.
+
+### J.6 — Lights Status Badge
+
+Once Track I.1 (lights) exists, show current front-light mode (off/steady/strobe) on the HUD in the same visual style as the existing REC/REV badges, for consistency.
+
+**Files touched:** `webxr_viewer.html` (`drawHud`), depends on Track I.1.
+
+### J.7 — Speed & Distance-from-Launch (once GPS exists)
+
+Once the GPS module is wired in (see the M10-25Q module covering both compass and GPS), two more HUD elements become meaningful:
+- **Speed over ground** — finally lights up the "SPEED — planned" ghost placeholder that's been dimmed in the HUD since the original mockup.
+- **Distance from launch point** — compute from the GPS fix at recording-start vs. current position. Pairs naturally with the link-quality bars: together they answer "how worried should I be right now" at range.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`), depends on GPS wiring (UART, separate from the I2C compass half of the same module).
+
+### J.8 — ARMED / FAILSAFE Watchdog Indicator (priority — safety-relevant)
+
+**This is the one to prioritize over the rest of this track.** Right now the HUD shows link quality (ping/bars), but there's a meaningful difference between "signal's a little slow" and "the watchdog is about to zero the throttle from lost connection" — and that distinction isn't visible at a glance.
+
+Add a clear, hard-to-miss state indicator:
+- **ARMED** (green/cyan, steady) — control messages arriving normally, motors responsive.
+- **FAILSAFE** (red, flashing) — no control message received within the watchdog window (~500ms, per the existing motor_control watchdog), throttle has been forced to zero.
+
+This should be driven by the same watchdog state already implemented in `motor_control.py` for Track B — expose it via `/telemetry` (`armed: bool`) rather than inferring it client-side from ping alone, since the actual watchdog trip is a server-side fact, not something the browser should guess at.
+
+**Files touched:** `motor_control.py` / `webrtc_stream.py` (expose watchdog state), `webxr_viewer.html` (prominent HUD indicator — this one should be sized/positioned to be genuinely hard to miss, not tucked into a corner like the other badges).
+
+---
+
 ## Quick Reference — File Map
 
 | File | Purpose | Status |
