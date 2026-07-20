@@ -77,6 +77,23 @@ class TestMotorControllerSoftwareMode(unittest.TestCase):
         m.set_drive(-1.0, 1.0)
         m.stop()  # cancels the watchdog cleanly
 
+    def test_armed_state(self):
+        m = MotorController(watchdog_s=10)  # long window so it won't trip mid-test
+        self.assertFalse(m.armed)      # nothing sent yet -> FAILSAFE/disarmed
+        m.set_drive(0.3, 0.0)
+        self.assertTrue(m.armed)       # control arrived -> ARMED
+        m.stop()
+        self.assertFalse(m.armed)      # explicit stop -> disarmed
+
+    def test_watchdog_trips_disarms(self):
+        import time
+        m = MotorController(watchdog_s=0.05)
+        m.set_drive(0.3, 0.0)
+        self.assertTrue(m.armed)
+        time.sleep(0.15)               # let the watchdog fire
+        self.assertFalse(m.armed)      # watchdog trip -> FAILSAFE
+        m.stop()
+
 
 if __name__ == "__main__":
     unittest.main()

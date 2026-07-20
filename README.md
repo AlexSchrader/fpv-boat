@@ -92,7 +92,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `/ws/control`      | Websocket: `{throttle, steer, reverse}` → motors   |
 | `/control_status`  | Last received control values (JSON)                |
 | `/record/start` `/record/stop` | Recording control (start auto-frees space) |
-| `/telemetry`       | Recording state, storage, CPU temp + load (JSON)   |
+| `/telemetry`       | Recording, storage, CPU temp/load, armed state (JSON) |
 | `/recordings`      | List clips — name, size, timestamp (JSON)          |
 | `/recordings/download?file=NAME` | Download a clip over HTTP             |
 | `/recordings/delete?file=NAME`   | Delete a clip (not the active one)   |

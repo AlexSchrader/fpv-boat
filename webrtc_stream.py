@@ -182,6 +182,7 @@ async def telemetry(request):
         "cpu_temp_c": _cpu_temp_c(),
         "cpu_load": load1,
         "cpu_load_frac": load_frac,
+        "armed": motors.armed,
     })
 
 async def recordings_list(request):
