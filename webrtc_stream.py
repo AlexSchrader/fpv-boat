@@ -229,6 +229,10 @@ async def clips(request):
     return web.FileResponse(os.path.expanduser("~/clips.html"))
 
 
+async def watch(request):
+    return web.FileResponse(os.path.expanduser("~/watch.html"))
+
+
 async def viewer(request):
     return web.FileResponse(os.path.expanduser("~/webxr_viewer.html"))
 
@@ -315,6 +319,7 @@ app.router.add_get("/recordings", recordings_list)
 app.router.add_get("/recordings/download", recording_download)
 app.router.add_get("/recordings/delete", recording_delete)
 app.router.add_get("/clips", clips)
+app.router.add_get("/watch", watch)
 app.router.add_get("/viewer", viewer)
 app.router.add_get("/three.module.js", three_js)
 app.router.add_get("/ws/control", control_ws)
