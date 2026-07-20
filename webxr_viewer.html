@@ -557,6 +557,22 @@ function drawHud() {
   hctx.fillStyle = lf < 0.7 ? CYAN : lf < 0.9 ? ORANGE : RED;
   hctx.fillRect(colR + 54, rowBotValY - 8, lbarW * lf, lbarH);
 
+  // ---- LOW STORAGE badge (flashes below the card once free space crosses the
+  // same floor that triggers auto-cleanup) ----
+  const freeGb = telemetry.storage_free_gb, floorGb = telemetry.recordings_min_free_gb;
+  if (freeGb != null && floorGb != null && floorGb > 0 && freeGb < floorGb
+      && Math.floor(performance.now() / 450) % 2 === 0) {
+    hctx.font = '700 15px Orbitron, sans-serif';
+    const label = 'LOW STORAGE';
+    const pw = hctx.measureText(label).width + 30, ph = 26, px = W/2 - pw/2, py = cardY + cardH + 10;
+    fillRoundRect(px, py, pw, ph, 7, 'rgba(255,122,26,0.94)');
+    hctx.fillStyle = '#1a1204';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText(label, W/2, py + ph/2 + 1);
+    hctx.textBaseline = 'alphabetic';
+  }
+
   const ghostCtl = !control.connected;
   const gaugeY = H - 165;
   // REV greys out while cruising (reverse is locked out); CRUISE lights green when engaged
@@ -583,9 +599,12 @@ function hudSignature() {
     control.reverse, control.connected, control.cruise,
     telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
     telemetry.cpu_temp_c, telemetry.cpu_load_frac,
-    linkState, lastPingMs, videoFps, telemetry.armed,
-    // flash phase while in failsafe so the indicator blinks via the dirty-check
-    telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0
+    linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
+    // flash phases so the failsafe + low-storage indicators blink via the dirty-check
+    telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
+    (telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0
+      && telemetry.storage_free_gb < telemetry.recordings_min_free_gb)
+      ? Math.floor(performance.now() / 450) % 2 : 0
   ].join('|');
 }
 

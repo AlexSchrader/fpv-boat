@@ -183,6 +183,7 @@ async def telemetry(request):
         "cpu_load": load1,
         "cpu_load_frac": load_frac,
         "armed": motors.armed,
+        "recordings_min_free_gb": RECORDINGS_MIN_FREE_GB,
     })
 
 async def recordings_list(request):
