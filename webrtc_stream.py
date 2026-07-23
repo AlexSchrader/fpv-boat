@@ -330,6 +330,10 @@ async def control_ws(request):
                 # throttle already carries the reverse sign from the client;
                 # steering is differential, handled inside set_drive()
                 motors.set_drive(latest_control["throttle"], latest_control["steer"])
+                # echo the client timestamp back for control-latency measurement (J.9)
+                ts = data.get("ts")
+                if ts is not None:
+                    await ws.send_json({"ack": ts})
             except Exception:
                 pass
     # stop the motors if the control link drops
