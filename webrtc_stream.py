@@ -4,6 +4,7 @@ import os
 import shutil
 import ssl
 import subprocess
+import time
 from datetime import datetime
 
 from aiohttp import web
@@ -85,6 +86,7 @@ print(f"[camera] stream {STREAM_WIDTH}x{STREAM_HEIGHT}, record {RECORD_WIDTH}x{R
 recording = False
 h264_encoder = None
 current_filename = None
+record_start_ts = None
 
 class CameraVideoTrack(VideoStreamTrack):
     def __init__(self):
@@ -125,11 +127,12 @@ async def offer(request):
     })
 
 async def record_start(request):
-    global recording, h264_encoder, current_filename
+    global recording, h264_encoder, current_filename, record_start_ts
     if recording:
         return web.json_response({"status": "already recording", "file": current_filename})
 
     enforce_storage_limit()
+    record_start_ts = time.monotonic()
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     current_filename = os.path.join(RECORDINGS_DIR, f"boat_{timestamp}.h264")
@@ -161,6 +164,30 @@ def _cpu_temp_c():
         return None
 
 
+def _wifi_rssi_dbm():
+    # Signal level in dBm from /proc/net/wireless (first station line).
+    try:
+        with open("/proc/net/wireless") as f:
+            for line in f.readlines()[2:]:  # skip 2 header rows
+                parts = line.split()
+                if len(parts) >= 4 and parts[0].endswith(":"):
+                    return int(float(parts[3].rstrip(".")))
+    except Exception:
+        pass
+    return None
+
+
+def _mem_free_mb():
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return round(int(line.split()[1]) / 1024)  # kB -> MB
+    except Exception:
+        pass
+    return None
+
+
 def _cpu_load():
     # 1-minute load average, and load normalized to core count (0..1+)
     try:
@@ -184,6 +211,9 @@ async def telemetry(request):
         "cpu_load_frac": load_frac,
         "armed": motors.armed,
         "recordings_min_free_gb": RECORDINGS_MIN_FREE_GB,
+        "wifi_rssi_dbm": _wifi_rssi_dbm(),
+        "mem_free_mb": _mem_free_mb(),
+        "rec_elapsed_s": round(time.monotonic() - record_start_ts) if (recording and record_start_ts) else None,
     })
 
 async def recordings_list(request):
