@@ -475,6 +475,14 @@ function drawHud() {
   hctx.font = '600 12px Rajdhani, sans-serif';
   hctx.fillStyle = LABEL_COLOR;
   hctx.fillText('LINK', colL, rowTopLabelY);
+  // RSSI (dBm), right side of the LINK cell
+  if (telemetry.wifi_rssi_dbm != null) {
+    hctx.textAlign = 'right';
+    hctx.fillStyle = telemetry.wifi_rssi_dbm >= -60 ? WHITE
+                    : telemetry.wifi_rssi_dbm >= -72 ? ORANGE : RED;
+    hctx.fillText(telemetry.wifi_rssi_dbm + 'dBm', cardX + cardW/2 - 14, rowTopLabelY);
+    hctx.textAlign = 'left';
+  }
 
   const barCount = 4, barGap = 8, barW = 5;
   let activeBars = 0;
@@ -519,7 +527,12 @@ function drawHud() {
   hctx.fillText('REC', colL + 15, rowBotLabelY);
   hctx.font = '700 13px Orbitron, sans-serif';
   hctx.fillStyle = telemetry.recording ? RED : WHITE;
-  hctx.fillText(telemetry.recording ? 'ON AIR' : 'OFF', colL + 46, rowBotLabelY);
+  let recText = telemetry.recording ? 'ON AIR' : 'OFF';
+  if (telemetry.recording && telemetry.rec_elapsed_s != null) {
+    const s = telemetry.rec_elapsed_s;
+    recText = 'ON AIR ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  hctx.fillText(recText, colL + 46, rowBotLabelY);
 
   // STORAGE line (bar + used/total)
   const usedPct = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
@@ -599,6 +612,7 @@ function hudSignature() {
     control.reverse, control.connected, control.cruise,
     telemetry.recording, telemetry.storage_free_gb, telemetry.storage_total_gb,
     telemetry.cpu_temp_c, telemetry.cpu_load_frac,
+    telemetry.wifi_rssi_dbm, telemetry.rec_elapsed_s,
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
     // flash phases so the failsafe + low-storage indicators blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,

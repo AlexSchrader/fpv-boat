@@ -357,13 +357,17 @@ Right now the HUD shows general ping, but that doesn't distinguish between two g
 
 **Files touched:** `webxr_viewer.html` (timestamp control messages, measure round trip), `webrtc_stream.py` (`/ws/control` echo timestamp back). *(Software-only — doable now.)*
 
-### J.10 — WiFi Signal Strength (RSSI)
+### J.10 — WiFi Signal Strength (RSSI) — ✅ DONE
+
+> Shipped: `/telemetry` exposes `wifi_rssi_dbm` (from `/proc/net/wireless`); shown on the VR HUD (LINK cell, color-coded) and the `/watch` page.
 
 Free — the Pi's network stack already exposes actual signal strength in dB. Show this as a precise number alongside (or instead of) the abstracted link-quality bars already on the HUD.
 
 **Files touched:** `webrtc_stream.py` (`/telemetry`, read RSSI via `iwconfig` or `/proc/net/wireless`), `webxr_viewer.html` (`drawHud`). *(Software-only — doable now.)*
 
-### J.11 — Session / Recording Elapsed Time
+### J.11 — Session / Recording Elapsed Time — ✅ DONE
+
+> Shipped: `/telemetry` exposes `rec_elapsed_s`; the REC readout shows `ON AIR m:ss` on the HUD and `/watch`.
 
 A simple running clock since recording started. Standard on any camera HUD, trivial to add since recording start time is already tracked server-side.
 
@@ -377,7 +381,9 @@ Separate from CPU temperature (J.1) — a load spike here would explain a stutte
 
 **Files touched:** `webrtc_stream.py` (`/telemetry`, read via `psutil` or `/proc/loadavg`), `webxr_viewer.html` (`drawHud`).
 
-### J.13 — Free RAM (diagnostic, low priority)
+### J.13 — Free RAM (diagnostic, low priority) — ✅ DONE
+
+> Shipped: `/telemetry` exposes `mem_free_mb` (from `/proc/meminfo`); shown on the `/watch` page.
 
 Mostly useful for debugging a crash after the fact rather than something the pilot needs mid-flight, but trivial to add alongside CPU load if already touching that code.
 
