@@ -349,6 +349,44 @@ This should be driven by the same watchdog state already implemented in `motor_c
 
 **Files touched:** `motor_control.py` / `webrtc_stream.py` (expose watchdog state), `webxr_viewer.html` (prominent HUD indicator — this one should be sized/positioned to be genuinely hard to miss, not tucked into a corner like the other badges).
 
+### J.9 — Control Latency (priority — splits two problems apart)
+
+Right now the HUD shows general ping, but that doesn't distinguish between two genuinely different problems: the video feed lagging vs. the actual control loop lagging. Add a specific measurement of round-trip time from "trigger/steer input sent" to "motor command acknowledged" on the server, separate from whatever ping/link-quality number is already shown.
+
+**Why this one's worth prioritizing:** if the boat ever feels sluggish or unresponsive, this is the number that tells you whether it's a WiFi problem, a video decode problem, or the boat's own control loop — three very different things to debug, currently indistinguishable from the HUD alone.
+
+**Files touched:** `webxr_viewer.html` (timestamp control messages, measure round trip), `webrtc_stream.py` (`/ws/control` echo timestamp back). *(Software-only — doable now.)*
+
+### J.10 — WiFi Signal Strength (RSSI)
+
+Free — the Pi's network stack already exposes actual signal strength in dB. Show this as a precise number alongside (or instead of) the abstracted link-quality bars already on the HUD.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`, read RSSI via `iwconfig` or `/proc/net/wireless`), `webxr_viewer.html` (`drawHud`). *(Software-only — doable now.)*
+
+### J.11 — Session / Recording Elapsed Time
+
+A simple running clock since recording started. Standard on any camera HUD, trivial to add since recording start time is already tracked server-side.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`). *(Software-only — doable now.)*
+
+### J.12 — CPU Load % — ✅ mostly DONE
+
+> `/telemetry` already exposes `cpu_load` / `cpu_load_frac` and the HUD shows a CPU **load bar** next to the temp (cyan→orange→red). Remaining nicety: a numeric `%` readout if wanted.
+
+Separate from CPU temperature (J.1) — a load spike here would explain a stutter in the stream or delayed control response in a way temperature alone doesn't capture.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`, read via `psutil` or `/proc/loadavg`), `webxr_viewer.html` (`drawHud`).
+
+### J.13 — Free RAM (diagnostic, low priority)
+
+Mostly useful for debugging a crash after the fact rather than something the pilot needs mid-flight, but trivial to add alongside CPU load if already touching that code.
+
+**Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`). *(Software-only — doable now.)*
+
+### Noted for later — Gyro / IMU (not free, requires a purchase)
+
+A gyro/IMU (e.g. MPU6050, ~$3-5) would enable a genuinely useful boat orientation/tilt indicator — detecting a capsize or a bad-angle wave hit — but unlike everything else in this track, it requires buying a small sensor rather than just software. Not blocking anything; worth keeping on the radar for a future hardware order rather than treating as a free HUD addition.
+
 ---
 
 ## Quick Reference — File Map
