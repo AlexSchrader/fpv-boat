@@ -154,11 +154,22 @@ function connectControlWs() {
   try {
     controlWs = new WebSocket(`${proto}://${location.host}/ws/control`);
   } catch (e) { setTimeout(connectControlWs, 1000); return; }
-  controlWs.onclose = () => { controlWs = null; setTimeout(connectControlWs, 1000); };
+  controlWs.onclose = () => { controlWs = null; ctrlLatency = null; setTimeout(connectControlWs, 1000); };
   controlWs.onerror = () => { try { controlWs.close(); } catch (e) {} };
+  // server echoes {ack: ts} -> round-trip = control-loop latency (J.9)
+  controlWs.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.ack != null) {
+        const rtt = performance.now() - m.ack;
+        ctrlLatency = ctrlLatency == null ? rtt : ctrlLatency * 0.7 + rtt * 0.3;
+      }
+    } catch (_) {}
+  };
 }
 connectControlWs();
 
+let ctrlLatency = null;   // smoothed control round-trip (ms)
 let lastSendMs = 0;
 function sendControl(nowMs) {
   if (!controlWs || controlWs.readyState !== WebSocket.OPEN) return;
@@ -170,7 +181,8 @@ function sendControl(nowMs) {
     controlWs.send(JSON.stringify({
       throttle: effThrottle,
       steer: control.steer,
-      reverse: control.reverse
+      reverse: control.reverse,
+      ts: nowMs
     }));
   } catch (e) {}
 }
@@ -498,15 +510,22 @@ function drawHud() {
     hctx.fillStyle = i < activeBars ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
     hctx.fillRect(bx, by, barW, bh);
   }
-  const pingX = colL + 4 * (barW + barGap) + 6;
+  let vx = colL + 4 * (barW + barGap) + 6;
   hctx.font = '600 13px Rajdhani, sans-serif';
   hctx.fillStyle = WHITE;
   const pingText = lastPingMs !== null ? lastPingMs + 'ms' : '--';
-  hctx.fillText(pingText, pingX, rowTopValY);
-  const pingW = hctx.measureText(pingText).width;   // measured with the 13px font
+  hctx.fillText(pingText, vx, rowTopValY);
+  vx += hctx.measureText(pingText).width + 8;
   hctx.font = '600 12px Rajdhani, sans-serif';
   hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText((videoFps > 0 ? videoFps : '--') + 'fps', pingX + pingW + 9, rowTopValY);
+  const fpsText = (videoFps > 0 ? videoFps : '--') + 'fps';
+  hctx.fillText(fpsText, vx, rowTopValY);
+  vx += hctx.measureText(fpsText).width + 8;
+  if (ctrlLatency != null) {            // control-loop RTT (J.9), colored by health
+    hctx.font = '600 11px Rajdhani, sans-serif';
+    hctx.fillStyle = ctrlLatency < 60 ? LABEL_COLOR : ctrlLatency < 150 ? ORANGE : RED;
+    hctx.fillText('ctl ' + Math.round(ctrlLatency) + 'ms', vx, rowTopValY);
+  }
 
   // --- BATTERY (top-right) ---
   hctx.font = '600 12px Rajdhani, sans-serif';
@@ -614,6 +633,7 @@ function hudSignature() {
     telemetry.cpu_temp_c, telemetry.cpu_load_frac,
     telemetry.wifi_rssi_dbm, telemetry.rec_elapsed_s,
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
+    ctrlLatency == null ? -1 : Math.round(ctrlLatency),
     // flash phases so the failsafe + low-storage indicators blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
     (telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0

@@ -349,7 +349,9 @@ This should be driven by the same watchdog state already implemented in `motor_c
 
 **Files touched:** `motor_control.py` / `webrtc_stream.py` (expose watchdog state), `webxr_viewer.html` (prominent HUD indicator — this one should be sized/positioned to be genuinely hard to miss, not tucked into a corner like the other badges).
 
-### J.9 — Control Latency (priority — splits two problems apart)
+### J.9 — Control Latency (priority — splits two problems apart) — ✅ DONE
+
+> Shipped: the viewer stamps each `/ws/control` message with `ts`; the server echoes `{ack: ts}`; the client computes a smoothed round-trip and shows `ctl <n>ms` (color-coded) in the HUD LINK cell — separate from video ping. Viewer-only (spectators don't drive).
 
 Right now the HUD shows general ping, but that doesn't distinguish between two genuinely different problems: the video feed lagging vs. the actual control loop lagging. Add a specific measurement of round-trip time from "trigger/steer input sent" to "motor command acknowledged" on the server, separate from whatever ping/link-quality number is already shown.
 
