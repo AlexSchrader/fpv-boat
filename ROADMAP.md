@@ -280,16 +280,23 @@ right_motor = throttle - steer
 
 **Files touched:** New `watch.html` (or similar), new route in `webrtc_stream.py`, possible refactor of shared HUD code out of `webxr_viewer.html`.
 
-### I.6 — Unit Tests for Motor Math
+### I.6 — Unit Tests for Motor Math — ✅ DONE
 
-**Goal:** Cheap, meaningful test coverage on the one piece of this project that's pure, deterministic logic.
+> Shipped: `test_motor_control.py` (differential-thrust mix + clamp edge cases,
+> armed-state transitions, watchdog trip) and `test_lights_control.py`
+> (running-lights on/off/toggle, the reverse channel's idempotency + truthiness
+> coercion, channel independence, pin-collision guards) — 26 tests total, run in
+> CI via `python -m unittest discover -p 'test_*.py'`. Both suites exercise the
+> software (no-GPIO) path, so they need no Pi-only deps. **Not covered:** the
+> exponential throttle curve (there isn't one — the trigger maps linearly) and
+> anything living in `webrtc_stream.py` (it imports picamera2/aiortc, so it isn't
+> importable in CI); the deterministic pieces there are already factored into the
+> two testable modules.
 
-**What to do:**
+**Original plan:**
 1. Test the differential-thrust calculation directly: `left = throttle + steer`, `right = throttle - steer`, both clamped to `[-1, 1]`. Cover edge cases — full throttle + full steer (should clamp), zero throttle with steer (pivot turn), negative throttle (reverse).
 2. Test the exponential throttle curve function in isolation.
 3. Wire into the existing CI workflow (`.github/workflows/ci.yml`) so these run on every push/PR alongside the current syntax checks.
-
-**Files touched:** New `test_motor_control.py` (or similar), `.github/workflows/ci.yml`.
 
 ---
 
