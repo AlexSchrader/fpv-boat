@@ -11,7 +11,7 @@ library or the sensor wired, `read()` returns all-None and the HUD simply shows
 `--%` — nothing raises.
 
 Config via env vars (all optional):
-    BATTERY_CELLS     LiPo cell count in series (default 3 -> 3S)
+    BATTERY_CELLS     LiPo cell count in series (default 2 -> 2S)
     BATTERY_SHUNT_OHMS  INA219 shunt resistance (default 0.1, the common breakout)
     BATTERY_MAX_AMPS  expected max current, tunes the INA219 gain (optional)
     BATTERY_WARN_PCT  low-battery alert threshold, percent (default 25)
@@ -21,7 +21,7 @@ Bench test: `python3 battery_control.py` prints a few reads.
 
 import os
 
-BATTERY_CELLS = int(os.environ.get("BATTERY_CELLS", "3"))
+BATTERY_CELLS = int(os.environ.get("BATTERY_CELLS", "2"))
 SHUNT_OHMS = float(os.environ.get("BATTERY_SHUNT_OHMS", "0.1"))
 MAX_AMPS = os.environ.get("BATTERY_MAX_AMPS")  # None -> let the library auto-gain
 WARN_PCT = int(os.environ.get("BATTERY_WARN_PCT", "25"))

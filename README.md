@@ -97,7 +97,7 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 | `RECORD_BITRATE` | `0` (encoder default) | H.264 record bitrate, bits/sec |
 | `CPU_OVERHEAT_C` | `80` | CPU temp that triggers auto-shutdown |
 | `RECORDINGS_MIN_FREE_GB` | `2.0` | Free-space floor before auto-deleting oldest clips (`0` disables) |
-| `BATTERY_CELLS` | `3` | LiPo cell count in series (sets the voltage→% curve) |
+| `BATTERY_CELLS` | `2` | LiPo cell count in series (sets the voltage→% curve) |
 | `BATTERY_SHUNT_OHMS` | `0.1` | INA219 shunt resistance |
 | `BATTERY_MAX_AMPS` | _(auto)_ | Expected max current (tunes INA219 gain) |
 | `BATTERY_WARN_PCT` | `25` | Charge % at which the HUD flashes LOW BATTERY (≤10% = CRITICAL) |
