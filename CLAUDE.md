@@ -54,7 +54,7 @@ Cruise is **client-side**: it holds `cruiseSpeed` as the throttle, X/Y adjust it
 ## Hardware status (check before assuming something exists)
 
 **In hand and wired:** Pi Zero 2 W, Arducam Camera Module 3 Wide.
-**In hand, not yet wired:** L298N motor driver, DPDT failsafe switch, MP1584EN buck converters, ShareGoo 8-LED kit, SG90 servos, PG7 glands, IP65 boxes, BrosTrend USB WiFi adapter. **Track B (motor control) is unblocked** — `motor_control.py` is ready to bench-test.
+**In hand, not yet wired:** L298N motor driver, DPDT failsafe switch, MP1584EN buck converters, ShareGoo 8-LED kit, SG90 servos, PG7 glands, IP65 boxes, BrosTrend USB WiFi adapter. **Track B (motor control) is unblocked** — `motor_control.py` is ready to bench-test. **Lights** (`lights_control.py`, auto-on with recording) are ready to bench-test too.
 **Still needed:** PCA9685 (for pan/tilt head-tracking), LiPo battery, INA219 (battery/current sensing). Water sensor not needed — tapping the boat's stock hull sensor.
 
 Don't write code that assumes motor or servo hardware is connected. `motor_control.py` already no-ops safely without `gpiozero`; bench-test any new hardware-facing path with logged output first.

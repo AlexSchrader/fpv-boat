@@ -202,7 +202,16 @@ right_motor = throttle - steer
 
 **Goal:** A batch of independent, additive features — none of these block each other or anything already built. Pick any one and go.
 
-### I.1 — Running Lights (dual-group, reverse-linked)
+### I.1 — Running Lights — ✅ DONE (v1, simpler scheme)
+
+> Shipped: `lights_control.py` (`LightController.on()/off()`, no-op without
+> gpiozero) switches both LED groups **together, auto-triggered by recording**
+> (on at `/record/start`, off at `/record/stop` + thermal shutdown). Pins in
+> `HARDWARE.md`. NOTE: this is simpler than the original plan below (B-tap toggle
+> / B-hold strobe / rear mirrors reverse) — no controller button, no strobe, no
+> separate reverse-linked rear. Those remain a possible enhancement.
+
+**Original plan — Running Lights (dual-group, reverse-linked):**
 
 **Hardware:** ShareGoo 8-LED kit (4 white "headlight" LEDs, 4 red "taillight" LEDs, individual leads, resistors pre-wired into the kit). Wire as **two independently switched groups**, not one:
 - White group → one logic-level MOSFET (e.g. IRLZ44N) or small relay, gate/coil driven by a GPIO output pin. Power comes from the LiPo/buck-converter rail, not directly from the GPIO pin.

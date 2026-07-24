@@ -104,6 +104,30 @@ and the Pi keeps running (relying on the firmware's own ~85 °C hardware
 throttle/shutdown as the last line of defense). Tune the threshold with the
 `CPU_OVERHEAT_C` env var.
 
+## Running lights (ShareGoo 8-LED kit)
+
+Two LED groups (4 white front, 4 red rear), each switched by its own NPN
+transistor — GPIO can't safely source the LEDs' combined current, so it just
+drives the transistor base. **Lights auto-turn-on with recording** (on at
+`/record/start`, off at `/record/stop` and on thermal shutdown); both groups
+switch together. Code: `lights_control.py` (`python3 lights_control.py` to
+bench-blink). No-op without `gpiozero`.
+
+| Function          | BCM    | Physical pin |
+| ----------------- | ------ | ------------ |
+| White front group | GPIO17 | **11**       |
+| Red rear group    | GPIO27 | **13**       |
+
+Per group:
+```
+GPIO pin --[1k]--> transistor base
+transistor collector <-- LED group negative
+transistor emitter ----> GND (shared with Pi / buck converter)
+LED group positive -----> 5V rail (buck converter output)
+```
+
+Change the pins in `lights_control.py` (`FRONT_PIN` / `REAR_PIN`) if you rewire.
+
 ## Control mapping (from the headset)
 
 | Input                          | Action                                  |
