@@ -463,7 +463,7 @@ function drawHud() {
   }
 
   // ---- unified top card (compact) ----
-  const cardW = 430, cardH = 108;
+  const cardW = 640, cardH = 108;   // wider (not taller) so LINK fits one divided row
   const cardX = W/2 - cardW/2, cardY = 110;   // below the ARMED pill, within the top safe inset
   roundedPanel(cardX, cardY, cardW, cardH, 12);
 
@@ -484,49 +484,57 @@ function drawHud() {
   const rowBotLabelY = cardY + 68;
   const rowBotValY = cardY + 90;
 
-  // --- LINK (top-left) ---
+  // --- LINK (top-left): label + one divided row of readouts ---
   hctx.font = '600 12px Rajdhani, sans-serif';
   hctx.fillStyle = LABEL_COLOR;
   hctx.fillText('LINK', colL, rowTopLabelY);
-  // RSSI (dBm), right side of the LINK cell
-  if (telemetry.wifi_rssi_dbm != null) {
-    hctx.textAlign = 'right';
-    hctx.fillStyle = telemetry.wifi_rssi_dbm >= -60 ? WHITE
-                    : telemetry.wifi_rssi_dbm >= -72 ? ORANGE : RED;
-    hctx.fillText(telemetry.wifi_rssi_dbm + 'dBm', cardX + cardW/2 - 14, rowTopLabelY);
-    hctx.textAlign = 'left';
-  }
 
-  const barCount = 4, barGap = 8, barW = 5;
+  const rowY = rowTopValY;
+  let lx = colL;
+  const linkDiv = () => {                 // thin vertical divider between segments
+    lx += 7;
+    hctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    hctx.lineWidth = 1;
+    hctx.beginPath();
+    hctx.moveTo(lx + 0.5, rowY - 12);
+    hctx.lineTo(lx + 0.5, rowY + 2);
+    hctx.stroke();
+    lx += 8;
+  };
+
+  // signal bars
+  const barCount = 4, barGap = 6, barW = 5;
   let activeBars = 0;
-  if (linkState === 'good') {
-    activeBars = lastPingMs !== null ? (lastPingMs < 60 ? 4 : lastPingMs < 120 ? 3 : 2) : 0;
-  } else if (linkState === 'degraded') {
-    activeBars = 1;
-  }
+  if (linkState === 'good') activeBars = lastPingMs !== null ? (lastPingMs < 60 ? 4 : lastPingMs < 120 ? 3 : 2) : 0;
+  else if (linkState === 'degraded') activeBars = 1;
   for (let i = 0; i < barCount; i++) {
-    const bh = 7 + i * 5;
-    const bx = colL + i * (barW + barGap);
-    const by = rowTopValY - bh;
+    const bh = 6 + i * 4;
     hctx.fillStyle = i < activeBars ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
-    hctx.fillRect(bx, by, barW, bh);
+    hctx.fillRect(lx + i * (barW + barGap), rowY - bh, barW, bh);
   }
-  let vx = colL + 4 * (barW + barGap) + 6;
-  hctx.font = '600 13px Rajdhani, sans-serif';
-  hctx.fillStyle = WHITE;
-  const pingText = lastPingMs !== null ? lastPingMs + 'ms' : '--';
-  hctx.fillText(pingText, vx, rowTopValY);
-  vx += hctx.measureText(pingText).width + 8;
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  const fpsText = (videoFps > 0 ? videoFps : '--') + 'fps';
-  hctx.fillText(fpsText, vx, rowTopValY);
-  vx += hctx.measureText(fpsText).width + 8;
-  if (ctrlLatency != null) {            // control-loop RTT (J.9), colored by health
-    hctx.font = '600 11px Rajdhani, sans-serif';
-    hctx.fillStyle = ctrlLatency < 60 ? LABEL_COLOR : ctrlLatency < 150 ? ORANGE : RED;
-    hctx.fillText('ctl ' + Math.round(ctrlLatency) + 'ms', vx, rowTopValY);
-  }
+  lx += (barCount - 1) * (barW + barGap) + barW;
+
+  const seg = (text, color, font) => {
+    hctx.font = font;
+    hctx.fillStyle = color;
+    hctx.fillText(text, lx, rowY);
+    lx += hctx.measureText(text).width;
+  };
+
+  linkDiv();
+  seg(lastPingMs !== null ? lastPingMs + 'ms' : '--', WHITE, '600 13px Rajdhani, sans-serif');
+  linkDiv();
+  seg((videoFps > 0 ? videoFps : '--') + 'fps', LABEL_COLOR, '600 12px Rajdhani, sans-serif');
+  linkDiv();
+  seg('ctl ' + (ctrlLatency == null ? '--' : Math.round(ctrlLatency) + 'ms'),
+      ctrlLatency == null ? LABEL_COLOR : ctrlLatency < 60 ? LABEL_COLOR : ctrlLatency < 150 ? ORANGE : RED,
+      '600 12px Rajdhani, sans-serif');
+  linkDiv();
+  seg(telemetry.wifi_rssi_dbm != null ? telemetry.wifi_rssi_dbm + 'dBm' : '--dBm',
+      telemetry.wifi_rssi_dbm == null ? LABEL_COLOR
+        : telemetry.wifi_rssi_dbm >= -60 ? WHITE
+        : telemetry.wifi_rssi_dbm >= -72 ? ORANGE : RED,
+      '600 12px Rajdhani, sans-serif');
 
   // --- BATTERY (top-right) ---
   hctx.font = '600 12px Rajdhani, sans-serif';
