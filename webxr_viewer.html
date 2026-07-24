@@ -462,141 +462,107 @@ function drawHud() {
     hctx.textBaseline = 'alphabetic';
   }
 
-  // ---- unified top card (compact) ----
-  const cardW = 640, cardH = 108;   // wider (not taller) so LINK fits one divided row
+  // ---- unified top card: two full-width divided rows ----
+  const cardW = 480, cardH = 108;
   const cardX = W/2 - cardW/2, cardY = 110;   // below the ARMED pill, within the top safe inset
   roundedPanel(cardX, cardY, cardW, cardH, 12);
 
-  // divider line, horizontal (between rows) and vertical (between columns)
-  hctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  const padX = 22;
+  const iL = cardX + padX, iR = cardX + cardW - padX;
+  const midY = cardY + 54;
+  const r1Label = cardY + 22, r1Val = cardY + 44;
+  const r2Label = cardY + 76, r2Val = cardY + 94;
+
+  hctx.strokeStyle = 'rgba(255,255,255,0.14)';
   hctx.lineWidth = 1;
-  hctx.beginPath();
-  hctx.moveTo(cardX + 18, cardY + 56);
-  hctx.lineTo(cardX + cardW - 18, cardY + 56);
-  hctx.moveTo(cardX + cardW/2, cardY + 12);
-  hctx.lineTo(cardX + cardW/2, cardY + cardH - 12);
-  hctx.stroke();
+  hctx.beginPath(); hctx.moveTo(iL, midY); hctx.lineTo(iR, midY); hctx.stroke();
 
-  const colL = cardX + 24;
-  const colR = cardX + cardW/2 + 24;
-  const rowTopLabelY = cardY + 18;
-  const rowTopValY = cardY + 44;
-  const rowBotLabelY = cardY + 68;
-  const rowBotValY = cardY + 90;
-
-  // --- LINK (top-left): label + one divided row of readouts ---
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('LINK', colL, rowTopLabelY);
-
-  const rowY = rowTopValY;
-  let lx = colL;
-  const linkDiv = () => {                 // thin vertical divider between segments
-    lx += 7;
-    hctx.strokeStyle = 'rgba(255,255,255,0.18)';
-    hctx.lineWidth = 1;
-    hctx.beginPath();
-    hctx.moveTo(lx + 0.5, rowY - 12);
-    hctx.lineTo(lx + 0.5, rowY + 2);
-    hctx.stroke();
-    lx += 8;
+  const vDiv = (x, y0, y1) => {
+    hctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    hctx.lineWidth = 1.5;
+    hctx.beginPath(); hctx.moveTo(x, y0); hctx.lineTo(x, y1); hctx.stroke();
   };
 
-  // signal bars
-  const barCount = 4, barGap = 6, barW = 5;
-  let activeBars = 0;
-  if (linkState === 'good') activeBars = lastPingMs !== null ? (lastPingMs < 60 ? 4 : lastPingMs < 120 ? 3 : 2) : 0;
-  else if (linkState === 'degraded') activeBars = 1;
-  for (let i = 0; i < barCount; i++) {
-    const bh = 6 + i * 4;
-    hctx.fillStyle = i < activeBars ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
-    hctx.fillRect(lx + i * (barW + barGap), rowY - bh, barW, bh);
-  }
-  lx += (barCount - 1) * (barW + barGap) + barW;
+  // ===== ROW 1: LINK — label + one divided, space-filled readout row =====
+  hctx.textAlign = 'left';
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('LINK', iL, r1Label);
 
-  const seg = (text, color, font) => {
+  const drawBars = (x) => {
+    let ab = 0;
+    if (linkState === 'good') ab = lastPingMs !== null ? (lastPingMs < 60 ? 4 : lastPingMs < 120 ? 3 : 2) : 0;
+    else if (linkState === 'degraded') ab = 1;
+    for (let i = 0; i < 4; i++) {
+      const bh = 6 + i * 4;
+      hctx.fillStyle = i < ab ? (linkState === 'good' ? WHITE : ORANGE) : 'rgba(255,255,255,0.15)';
+      hctx.fillRect(x + i * 11, r1Val - bh, 5, bh);
+    }
+  };
+  const mkText = (s, color, font) => {
     hctx.font = font;
-    hctx.fillStyle = color;
-    hctx.fillText(text, lx, rowY);
-    lx += hctx.measureText(text).width;
+    return { w: hctx.measureText(s).width,
+             draw: (x) => { hctx.font = font; hctx.fillStyle = color; hctx.textAlign = 'left'; hctx.fillText(s, x, r1Val); } };
   };
+  const rssi = telemetry.wifi_rssi_dbm;
+  const segs = [
+    { w: 3 * 11 + 5, draw: drawBars },
+    mkText(lastPingMs !== null ? lastPingMs + 'ms' : '--', WHITE, '600 13px Rajdhani, sans-serif'),
+    mkText((videoFps > 0 ? videoFps : '--') + 'fps', LABEL_COLOR, '600 12px Rajdhani, sans-serif'),
+    mkText('ctl ' + (ctrlLatency == null ? '--' : Math.round(ctrlLatency) + 'ms'),
+           ctrlLatency == null ? LABEL_COLOR : ctrlLatency < 60 ? LABEL_COLOR : ctrlLatency < 150 ? ORANGE : RED,
+           '600 12px Rajdhani, sans-serif'),
+    mkText(rssi != null ? rssi + 'dBm' : '--dBm',
+           rssi == null ? LABEL_COLOR : rssi >= -60 ? WHITE : rssi >= -72 ? ORANGE : RED,
+           '600 12px Rajdhani, sans-serif'),
+  ];
+  const segTotal = segs.reduce((a, s) => a + s.w, 0);
+  const segGap = (iR - iL - segTotal) / (segs.length - 1);
+  let sx = iL;
+  segs.forEach((s, i) => {
+    s.draw(sx);
+    sx += s.w;
+    if (i < segs.length - 1) { vDiv(sx + segGap / 2, r1Val - 12, r1Val + 3); sx += segGap; }
+  });
 
-  linkDiv();
-  seg(lastPingMs !== null ? lastPingMs + 'ms' : '--', WHITE, '600 13px Rajdhani, sans-serif');
-  linkDiv();
-  seg((videoFps > 0 ? videoFps : '--') + 'fps', LABEL_COLOR, '600 12px Rajdhani, sans-serif');
-  linkDiv();
-  seg('ctl ' + (ctrlLatency == null ? '--' : Math.round(ctrlLatency) + 'ms'),
-      ctrlLatency == null ? LABEL_COLOR : ctrlLatency < 60 ? LABEL_COLOR : ctrlLatency < 150 ? ORANGE : RED,
-      '600 12px Rajdhani, sans-serif');
-  linkDiv();
-  seg(telemetry.wifi_rssi_dbm != null ? telemetry.wifi_rssi_dbm + 'dBm' : '--dBm',
-      telemetry.wifi_rssi_dbm == null ? LABEL_COLOR
-        : telemetry.wifi_rssi_dbm >= -60 ? WHITE
-        : telemetry.wifi_rssi_dbm >= -72 ? ORANGE : RED,
-      '600 12px Rajdhani, sans-serif');
+  // ===== ROW 2: BAT | REC | STOR | CPU (four equal columns) =====
+  const cols = 4;
+  const colW = (iR - iL) / cols;
+  for (let i = 1; i < cols; i++) vDiv(iL + i * colW, cardY + 60, cardY + cardH - 12);
+  const cx0 = (i) => iL + i * colW + 6;
 
-  // --- BATTERY (top-right) ---
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('BATTERY', colR, rowTopLabelY);
-  hctx.font = '600 18px Orbitron, sans-serif';
-  hctx.fillStyle = GHOST;
-  hctx.fillText('--%', colR, rowTopValY + 4);
+  hctx.textAlign = 'left';
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('BAT', cx0(0), r2Label);
+  hctx.font = '600 15px Orbitron, sans-serif'; hctx.fillStyle = GHOST;
+  hctx.fillText('--%', cx0(0), r2Val);
 
-  // --- REC + STORAGE (bottom-left, two compact lines) ---
-  // REC line
   hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.2)';
-  hctx.beginPath();
-  hctx.arc(colL + 4, rowBotLabelY - 4, 5, 0, Math.PI*2);
-  hctx.fill();
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('REC', colL + 15, rowBotLabelY);
-  hctx.font = '700 13px Orbitron, sans-serif';
-  hctx.fillStyle = telemetry.recording ? RED : WHITE;
-  let recText = telemetry.recording ? 'ON AIR' : 'OFF';
-  if (telemetry.recording && telemetry.rec_elapsed_s != null) {
+  hctx.beginPath(); hctx.arc(cx0(1) + 4, r2Label - 4, 4, 0, Math.PI * 2); hctx.fill();
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('REC', cx0(1) + 13, r2Label);
+  hctx.font = '700 14px Orbitron, sans-serif'; hctx.fillStyle = telemetry.recording ? RED : WHITE;
+  let recTxt = 'OFF';
+  if (telemetry.recording) {
     const s = telemetry.rec_elapsed_s;
-    recText = 'ON AIR ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    recTxt = s != null ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : 'ON';
   }
-  hctx.fillText(recText, colL + 46, rowBotLabelY);
+  hctx.fillText(recTxt, cx0(1), r2Val);
 
-  // STORAGE line (bar + used/total)
-  const usedPct = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
-    ? Math.max(0, Math.min(1, 1 - (telemetry.storage_free_gb / telemetry.storage_total_gb)))
-    : 0;
-  const sbarW = 44, sbarH = 5;
-  hctx.fillStyle = 'rgba(255,255,255,0.15)';
-  hctx.fillRect(colL, rowBotValY - 8, sbarW, sbarH);
-  hctx.fillStyle = CYAN;
-  hctx.fillRect(colL, rowBotValY - 8, sbarW * usedPct, sbarH);
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('STOR', cx0(2), r2Label);
   const usedGb = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
-    ? Math.round(telemetry.storage_total_gb - telemetry.storage_free_gb)
-    : '--';
+    ? Math.round(telemetry.storage_total_gb - telemetry.storage_free_gb) : '--';
   const totalGb = telemetry.storage_total_gb !== null ? Math.round(telemetry.storage_total_gb) : 128;
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = WHITE;
-  hctx.fillText(usedGb + '/' + totalGb + 'GB', colL + sbarW + 8, rowBotValY);
+  hctx.font = '600 13px Rajdhani, sans-serif'; hctx.fillStyle = WHITE;
+  hctx.fillText(usedGb + '/' + totalGb + 'GB', cx0(2), r2Val);
 
-  // --- CPU (bottom-right) ---
-  hctx.font = '600 12px Rajdhani, sans-serif';
-  hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('CPU', colR, rowBotLabelY);
-
-  // temp color: white = OK, yellow = caution, red = overheating (Pi auto-shuts down)
+  hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
+  hctx.fillText('CPU', cx0(3), r2Label);
   const t = telemetry.cpu_temp_c;
-  const tempColor = (t == null) ? GHOST : (t < 70 ? WHITE : t < 80 ? YELLOW : RED);
   hctx.font = '700 15px Orbitron, sans-serif';
-  hctx.fillStyle = tempColor;
-  hctx.fillText(t != null ? Math.round(t) + '°C' : '--°C', colR, rowBotValY);
-
-  const lf = (telemetry.cpu_load_frac != null) ? Math.max(0, Math.min(1, telemetry.cpu_load_frac)) : 0;
-  const lbarW = 58, lbarH = 5;
-  hctx.fillStyle = 'rgba(255,255,255,0.15)';
-  hctx.fillRect(colR + 54, rowBotValY - 8, lbarW, lbarH);
-  hctx.fillStyle = lf < 0.7 ? CYAN : lf < 0.9 ? ORANGE : RED;
-  hctx.fillRect(colR + 54, rowBotValY - 8, lbarW * lf, lbarH);
+  hctx.fillStyle = (t == null) ? GHOST : (t < 70 ? WHITE : t < 80 ? YELLOW : RED);
+  hctx.fillText(t != null ? Math.round(t) + '°C' : '--°C', cx0(3), r2Val);
 
   // ---- LOW STORAGE badge (flashes below the card once free space crosses the
   // same floor that triggers auto-cleanup) ----
