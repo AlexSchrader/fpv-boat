@@ -442,7 +442,8 @@ function drawHud() {
     const armed = telemetry.armed === true;
     const label = armed ? 'ARMED' : 'FAILSAFE';
     hctx.font = '700 20px Orbitron, sans-serif';
-    const pw = hctx.measureText(label).width + 46, ph = 34, px = W/2 - pw/2, py = 28;
+    // py within the ~9% top safe inset (720*0.09 ≈ 65) so it clears the Quest lens edge
+    const pw = hctx.measureText(label).width + 46, ph = 34, px = W/2 - pw/2, py = 66;
     let bg, edge, fg;
     if (armed) {
       bg = 'rgba(6,40,46,0.72)'; edge = CYAN; fg = CYAN;
@@ -463,7 +464,7 @@ function drawHud() {
 
   // ---- unified top card (compact) ----
   const cardW = 430, cardH = 108;
-  const cardX = W/2 - cardW/2, cardY = 88;
+  const cardX = W/2 - cardW/2, cardY = 110;   // below the ARMED pill, within the top safe inset
   roundedPanel(cardX, cardY, cardW, cardH, 12);
 
   // divider line, horizontal (between rows) and vertical (between columns)
