@@ -23,6 +23,7 @@ A Meta Quest 2 FPV-controlled RC boat. A Raspberry Pi Zero 2 W on the boat strea
   - `/recordings`, `/recordings/download?file=NAME`, `/recordings/delete?file=NAME` — list/download/delete clips (basename-guarded; delete refuses the active file)
   - `/telemetry` — JSON status (recording state, disk space, CPU temp + load)
   - `/control_status` — last received control values
+  - `/system/shutdown` — graceful power-off (both-grips+B combo in the viewer); shares the thermal monitor's `_safe_poweroff()` path (stop motors/lights, close recording, `sudo shutdown`)
   - `/viewer`, `/clips`, `/three.module.js` — serves the client (VR viewer, recordings manager page, Three.js)
   - `/ws/control` — websocket, receives `{throttle, steer, reverse}` from the browser. Stores `latest_control` **and** drives `motor_control.py` (`motors.set_drive`). No-op physically until the L298N is wired, but the software path is complete.
 - **`motor_control.py`** — the differential-thrust L298N motor driver, decoupled from the server so it can be bench-tested standalone (`python3 motor_control.py`). Implements `left = throttle + steer` / `right = throttle - steer` and a **~500 ms watchdog** (zeros the motors if no `set_drive` arrives). Runs as a **no-op if `gpiozero` is unavailable**, so the server works fine on a machine with no GPIO. Pin map lives in `HARDWARE.md`.
@@ -45,7 +46,8 @@ Read via `XRSession.inputSources` during the immersive session:
 - **A** — double-tap = start recording, single-tap = stop
 - **X** — tap toggles reverse; while cruising, hold = slow down
 - **Y** — double-tap toggles **cruise** (throttle hold); while cruising, hold = speed up
-- **B, right trigger, thumbsticks, grips** — reserved / unused
+- **Both grips + B** — opens the graceful-shutdown confirm popup (right stick chooses Yes/No, A selects, auto-cancels after 5 s, defaults to No). Selecting Yes hits `/system/shutdown`, which stops motors/lights, closes any recording, and powers the Pi down. Client-side popup state; the boat's drive is frozen while it's open.
+- **Right trigger, left thumbstick** — reserved / unused
 
 Cruise is **client-side**: it holds `cruiseSpeed` as the throttle, X/Y adjust it, reverse is locked out, and a trigger squeeze past ~50% disengages it (safety). The viewer streams `{throttle, steer, reverse}` to `/ws/control` at ~20 Hz — the Pi only ever sees the resulting throttle, so it stays dumb.
 

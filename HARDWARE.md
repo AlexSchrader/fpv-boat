@@ -104,6 +104,11 @@ and the Pi keeps running (relying on the firmware's own ~85 °C hardware
 throttle/shutdown as the last line of defense). Tune the threshold with the
 `CPU_OVERHEAT_C` env var.
 
+The same passwordless-`sudo shutdown` rule also powers the **in-headset
+shutdown combo** (both grips + B → confirm popup → `/system/shutdown`), which
+takes the identical safe-poweroff path (stop motors/lights, close any active
+recording, then `sudo shutdown`). One sudoers drop-in covers both.
+
 ## Running lights (ShareGoo 8-LED kit)
 
 Two LED groups (4 white front, 4 red rear), each switched by its own NPN
@@ -138,7 +143,8 @@ Change the pins in `lights_control.py` (`FRONT_PIN` / `REAR_PIN`) if you rewire.
 | A — single-tap                 | Stop recording                          |
 | X — tap                        | Toggle reverse; while cruising, hold = slower |
 | Y — double-tap                 | Toggle cruise; while cruising, hold = faster  |
-| B, right trigger, grips        | Reserved / unused                       |
+| Both grips + B                 | Open the shutdown-confirm popup (stick to choose, A to select) |
+| Right trigger, left thumbstick | Reserved / unused                       |
 
 > Note: this mapping follows the current build. `ROADMAP.md` Track A describes an
 > earlier scheme (A = record toggle, B = reverse). The code above is canonical;
