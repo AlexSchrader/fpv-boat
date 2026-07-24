@@ -222,26 +222,20 @@ let lastPollTs = 0;
 // auto-cancels after 5 s of no input. Timing is driven off the animation loop's
 // nowMs (no setTimeout) so it stays in the single render loop.
 const SHUTDOWN_TIMEOUT_MS = 5000;
-const SHUTDOWN_TEST_FLASH_MS = 2500;   // how long the in-headset TEST badge stays up
 let shutdownOpen = false;        // confirm popup visible
 let shutdownSel = 'no';          // highlighted option ('yes' | 'no')
 let shutdownLastInput = 0;       // for the 5 s inactivity auto-cancel
 let shutComboLatch = false;      // require the combo to release before it re-arms
 let shutNavPrev = false;         // right-stick nav edge
-let shutdownTestFlashUntil = 0;  // TEST-badge deadline (performance.now() ms)
+let shutdownInProgress = false;  // true once Yes is confirmed -> shows the "shutting down" overlay
 
 function triggerShutdown() {
-  // TESTING MODE — the real power-off is intentionally stubbed until the build
-  // is complete, so the whole combo -> popup -> confirm flow is safe to exercise
-  // in-headset without ever taking the Pi down. It logs to the console and pops
-  // a short "TEST" badge on the HUD so it's confirmable in VR too.
-  console.log('[TEST] Shutdown confirmed — would POST /system/shutdown here');
-  shutdownTestFlashUntil = performance.now() + SHUTDOWN_TEST_FLASH_MS;
-
-  // --- REAL VERSION (swap in when ready to go live) ---
-  // Delete the two lines above and uncomment the fetch. The link drops as the
-  // Pi powers off mid-response, so a failed fetch here is expected, not an error.
-  // fetch('/system/shutdown').catch(() => {});
+  // LIVE — hits the server, which stops motors/lights, closes any recording,
+  // then `sudo shutdown`. The link drops as the Pi powers off mid-response, so a
+  // failed fetch here is expected, not an error. The overlay stays up until the
+  // page dies with the Pi.
+  shutdownInProgress = true;
+  fetch('/system/shutdown').catch(() => {});
 }
 
 function updateShutdown(pad, nowMs) {
@@ -531,11 +525,11 @@ function fillRoundRect(x, y, w, h, r, fill) {
   hctx.fill();
 }
 
-// Car-style headlight telltale: the classic lamp-with-rays symbol, lit green
+// Car-style headlight telltale: the classic lamp-with-rays symbol, lit blue
 // when the running lights are on and dimmed to a ghost outline when off — same
-// idea as the green headlight indicator on a car's dash.
+// idea as the headlight indicator on a car's dash.
 function drawLightTelltale(cx, cy, on) {
-  const col = on ? GREEN : 'rgba(255,255,255,0.16)';
+  const col = on ? CYAN : 'rgba(255,255,255,0.16)';
   hctx.fillStyle = col;
   hctx.strokeStyle = col;
   // lamp: a left-bulging half-oval with a flat right edge
@@ -749,17 +743,17 @@ function drawHud() {
     chip(yesX, 'YES', shutdownSel === 'yes', RED);
     chip(noX,  'NO',  shutdownSel === 'no',  GREEN);
     hctx.textAlign = 'left';
-  } else if (performance.now() < shutdownTestFlashUntil) {
-    // TESTING MODE badge — confirms the Yes path fired without powering off.
-    const label = 'TEST · SHUTDOWN TRIGGERED';
-    hctx.font = '700 22px Orbitron, sans-serif';
-    const bw = hctx.measureText(label).width + 44, bh = 44, bx = W/2 - bw/2, by = H/2 - bh/2;
-    fillRoundRect(bx, by, bw, bh, 10, 'rgba(255,122,26,0.94)');
-    hctx.fillStyle = '#1a1204';
+  } else if (shutdownInProgress) {
+    // Persistent overlay after Yes — stays up until the page dies with the Pi.
+    hctx.fillStyle = 'rgba(0,0,0,0.6)';
+    hctx.fillRect(0, 0, W, H);
     hctx.textAlign = 'center';
-    hctx.textBaseline = 'middle';
-    hctx.fillText(label, W/2, by + bh/2 + 1);
-    hctx.textBaseline = 'alphabetic';
+    hctx.fillStyle = RED;
+    hctx.font = '700 34px Orbitron, sans-serif';
+    hctx.fillText('SHUTTING DOWN…', W/2, H/2 - 6);
+    hctx.fillStyle = LABEL_COLOR;
+    hctx.font = '600 16px Rajdhani, sans-serif';
+    hctx.fillText('Safe to flip the master switch once the Pi is off.', W/2, H/2 + 28);
     hctx.textAlign = 'left';
   }
 
@@ -784,7 +778,7 @@ function hudSignature() {
     telemetry.wifi_rssi_dbm, telemetry.rec_elapsed_s,
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
     ctrlLatency == null ? -1 : Math.round(ctrlLatency),
-    shutdownOpen, shutdownSel, performance.now() < shutdownTestFlashUntil,
+    shutdownOpen, shutdownSel, shutdownInProgress,
     telemetry.lights_on, telemetry.reverse_lights_on,
     // flash phases so the failsafe + low-storage indicators blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
