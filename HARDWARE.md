@@ -152,9 +152,9 @@ Change the pins in `lights_control.py` (`FRONT_PIN` / `REAR_PIN`) if you rewire.
 | Right thumbstick X             | Steer                                   |
 | A — double-tap                 | Start recording                         |
 | A — single-tap                 | Stop recording                          |
-| X — double-tap                 | Toggle cruise; while cruising, hold = faster  |
+| X — double-tap                 | Toggle cruise; while cruising, hold = slower  |
 | Y — single-tap                 | Toggle running lights (also auto-on with recording) |
-| Y — double-tap                 | Toggle reverse; while cruising, hold = slower |
+| Y — double-tap                 | Toggle reverse; while cruising, hold = faster |
 | Both grips + B                 | Open the shutdown-confirm popup (stick to choose, A to select) |
 | Right trigger, left thumbstick | Reserved / unused                       |
 

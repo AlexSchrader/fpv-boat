@@ -212,6 +212,8 @@ async def telemetry(request):
         "cpu_load": load1,
         "cpu_load_frac": load_frac,
         "armed": motors.armed,
+        "lights_on": lights.state,
+        "reverse_lights_on": lights.reverse_state,
         "recordings_min_free_gb": RECORDINGS_MIN_FREE_GB,
         "wifi_rssi_dbm": _wifi_rssi_dbm(),
         "mem_free_mb": _mem_free_mb(),

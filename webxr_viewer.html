@@ -197,9 +197,9 @@ function toggleLights()    { fetch('/lights/toggle').catch(() => {}); }
 //   LEFT  trigger (buttons[0].value) -> throttle (0..1; reverse flips its sign)
 //   RIGHT thumbstick X (axes[2]) -> steer
 //   RIGHT button[4] = A -> double-tap start record / single-tap stop record
-//   LEFT  button[4] = X -> double-tap toggles cruise; while cruising, hold = speed UP
+//   LEFT  button[4] = X -> double-tap toggles cruise; while cruising, hold = speed DOWN
 //   LEFT  button[5] = Y -> single-tap toggles lights / double-tap toggles reverse;
-//                          while cruising, hold = speed DOWN
+//                          while cruising, hold = speed UP
 //   BOTH grips (button[1]) + B (right[5]) -> open the shutdown confirm popup
 //   Reserved (ignored): RIGHT trigger, LEFT thumbstick
 // Rear "reverse lights" (future hardware) come on automatically in reverse — the
@@ -390,12 +390,12 @@ function pollControllers(nowMs) {
   trigHighPrev = trigHigh;
 
   if (control.cruise) {
-    // hold X -> faster (X is the cruise button), hold Y -> slower. Both must be
-    // held past CRUISE_HOLD_MS so a quick tap can't nudge the set-speed.
+    // hold Y -> faster, hold X -> slower. Both must be held past CRUISE_HOLD_MS
+    // so a quick tap can't nudge the set-speed.
     const xHeld = pad.x && xLastRise > 0 && (nowMs - xDownSince) > CRUISE_HOLD_MS;
     const yHeld = pad.y && (nowMs - yDownSince) > CRUISE_HOLD_MS;
-    if (xHeld)  control.cruiseSpeed = Math.min(1, control.cruiseSpeed + CRUISE_RATE * dt);
-    if (yHeld)  control.cruiseSpeed = Math.max(0, control.cruiseSpeed - CRUISE_RATE * dt);
+    if (yHeld)  control.cruiseSpeed = Math.min(1, control.cruiseSpeed + CRUISE_RATE * dt);
+    if (xHeld)  control.cruiseSpeed = Math.max(0, control.cruiseSpeed - CRUISE_RATE * dt);
     control.reverse = false;        // reverse locked out while cruising
     control.throttle = control.cruiseSpeed;
   } else {
@@ -529,6 +529,31 @@ function fillRoundRect(x, y, w, h, r, fill) {
   hctx.fillStyle = fill;
   roundRectPath(x, y, w, h, r);
   hctx.fill();
+}
+
+// Car-style headlight telltale: the classic lamp-with-rays symbol, lit green
+// when the running lights are on and dimmed to a ghost outline when off — same
+// idea as the green headlight indicator on a car's dash.
+function drawLightTelltale(cx, cy, on) {
+  const col = on ? GREEN : 'rgba(255,255,255,0.16)';
+  hctx.fillStyle = col;
+  hctx.strokeStyle = col;
+  // lamp: a left-bulging half-oval with a flat right edge
+  hctx.beginPath();
+  hctx.ellipse(cx, cy, 9, 7, 0, Math.PI / 2, Math.PI * 1.5, false);
+  hctx.closePath();
+  hctx.fill();
+  // three light rays off the flat edge, angled slightly down (low-beam look)
+  hctx.lineWidth = 2.4;
+  hctx.lineCap = 'round';
+  for (let i = -1; i <= 1; i++) {
+    const y = cy + i * 5;
+    hctx.beginPath();
+    hctx.moveTo(cx + 3, y);
+    hctx.lineTo(cx + 15, y + 2);
+    hctx.stroke();
+  }
+  hctx.lineCap = 'butt';
 }
 
 function drawHud() {
@@ -689,6 +714,9 @@ function drawHud() {
             false, control.cruise ? 'on' : 'off');
   drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
 
+  // headlight telltale inside the top of the throttle gauge (green when lit)
+  drawLightTelltale(W/2 - 120 - 8, gaugeY - 42, telemetry.lights_on === true);
+
   // ---- shutdown confirm popup (both grips + B) ----
   if (shutdownOpen) {
     hctx.fillStyle = 'rgba(0,0,0,0.5)';        // scrim to focus the modal
@@ -757,6 +785,7 @@ function hudSignature() {
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
     ctrlLatency == null ? -1 : Math.round(ctrlLatency),
     shutdownOpen, shutdownSel, performance.now() < shutdownTestFlashUntil,
+    telemetry.lights_on, telemetry.reverse_lights_on,
     // flash phases so the failsafe + low-storage indicators blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
     (telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0
