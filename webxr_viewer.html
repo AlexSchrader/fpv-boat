@@ -217,16 +217,26 @@ let lastPollTs = 0;
 // auto-cancels after 5 s of no input. Timing is driven off the animation loop's
 // nowMs (no setTimeout) so it stays in the single render loop.
 const SHUTDOWN_TIMEOUT_MS = 5000;
+const SHUTDOWN_TEST_FLASH_MS = 2500;   // how long the in-headset TEST badge stays up
 let shutdownOpen = false;        // confirm popup visible
-let shutdownConfirming = false;  // request sent -> showing "shutting down…"
 let shutdownSel = 'no';          // highlighted option ('yes' | 'no')
 let shutdownLastInput = 0;       // for the 5 s inactivity auto-cancel
 let shutComboLatch = false;      // require the combo to release before it re-arms
 let shutNavPrev = false;         // right-stick nav edge
+let shutdownTestFlashUntil = 0;  // TEST-badge deadline (performance.now() ms)
 
 function triggerShutdown() {
-  // The link drops as the Pi powers off mid-response — a failed fetch is expected here.
-  fetch('/system/shutdown').catch(() => {});
+  // TESTING MODE — the real power-off is intentionally stubbed until the build
+  // is complete, so the whole combo -> popup -> confirm flow is safe to exercise
+  // in-headset without ever taking the Pi down. It logs to the console and pops
+  // a short "TEST" badge on the HUD so it's confirmable in VR too.
+  console.log('[TEST] Shutdown confirmed — would POST /system/shutdown here');
+  shutdownTestFlashUntil = performance.now() + SHUTDOWN_TEST_FLASH_MS;
+
+  // --- REAL VERSION (swap in when ready to go live) ---
+  // Delete the two lines above and uncomment the fetch. The link drops as the
+  // Pi powers off mid-response, so a failed fetch here is expected, not an error.
+  // fetch('/system/shutdown').catch(() => {});
 }
 
 function updateShutdown(pad, nowMs) {
@@ -234,14 +244,13 @@ function updateShutdown(pad, nowMs) {
   const combo = pad.lg && pad.rg && pad.b;
   if (combo && !shutComboLatch && !shutdownOpen) {
     shutdownOpen = true;
-    shutdownConfirming = false;
     shutdownSel = 'no';                 // safety default
     shutdownLastInput = nowMs;
     shutComboLatch = true;
   }
   if (!combo) shutComboLatch = false;
 
-  if (!shutdownOpen || shutdownConfirming) return;
+  if (!shutdownOpen) return;
 
   // Right stick X moves the highlight: left = Yes, right = No (rising edge).
   if (Math.abs(pad.steer) > 0.5) {
@@ -251,11 +260,11 @@ function updateShutdown(pad, nowMs) {
     shutNavPrev = false;
   }
 
-  // A selects the highlighted option.
+  // A selects the highlighted option, then the popup closes either way.
   if (pad.a && !aPrev) {
     shutdownLastInput = nowMs;
-    if (shutdownSel === 'yes') { shutdownConfirming = true; triggerShutdown(); }
-    else { shutdownOpen = false; }
+    if (shutdownSel === 'yes') triggerShutdown();
+    shutdownOpen = false;
   }
 
   if (nowMs - shutdownLastInput > SHUTDOWN_TIMEOUT_MS) shutdownOpen = false;
@@ -667,37 +676,40 @@ function drawHud() {
     hctx.lineWidth = 2; hctx.strokeStyle = RED; roundRectPath(px, py, pw, ph, 16); hctx.stroke();
 
     hctx.textAlign = 'center';
-    if (shutdownConfirming) {
-      hctx.fillStyle = RED;
-      hctx.font = '700 32px Orbitron, sans-serif';
-      hctx.fillText('SHUTTING DOWN…', W/2, py + 108);
-      hctx.fillStyle = LABEL_COLOR;
-      hctx.font = '600 16px Rajdhani, sans-serif';
-      hctx.fillText('Safe to flip the master switch once the Pi is off.', W/2, py + 148);
-    } else {
-      hctx.fillStyle = WHITE;
-      hctx.font = '700 30px Orbitron, sans-serif';
-      hctx.fillText('SHUT DOWN BOAT?', W/2, py + 58);
-      hctx.fillStyle = LABEL_COLOR;
-      hctx.font = '600 15px Rajdhani, sans-serif';
-      hctx.fillText('Stick ← / → to choose · A to select', W/2, py + 88);
+    hctx.fillStyle = WHITE;
+    hctx.font = '700 30px Orbitron, sans-serif';
+    hctx.fillText('SHUT DOWN BOAT?', W/2, py + 58);
+    hctx.fillStyle = LABEL_COLOR;
+    hctx.font = '600 15px Rajdhani, sans-serif';
+    hctx.fillText('Stick ← / → to choose · A to select', W/2, py + 88);
 
-      const bw = 180, bh = 54, gap = 28, by = py + ph - bh - 26;
-      const yesX = W/2 - bw - gap/2, noX = W/2 + gap/2;
-      const chip = (x, label, on, color) => {
-        fillRoundRect(x, by, bw, bh, 10, on ? color : 'rgba(255,255,255,0.06)');
-        hctx.lineWidth = 2;
-        hctx.strokeStyle = on ? color : 'rgba(255,255,255,0.25)';
-        roundRectPath(x, by, bw, bh, 10); hctx.stroke();
-        hctx.fillStyle = on ? '#0c1012' : WHITE;
-        hctx.font = '700 22px Orbitron, sans-serif';
-        hctx.textBaseline = 'middle';
-        hctx.fillText(label, x + bw/2, by + bh/2 + 1);
-        hctx.textBaseline = 'alphabetic';
-      };
-      chip(yesX, 'YES', shutdownSel === 'yes', RED);
-      chip(noX,  'NO',  shutdownSel === 'no',  GREEN);
-    }
+    const bw = 180, bh = 54, gap = 28, by = py + ph - bh - 26;
+    const yesX = W/2 - bw - gap/2, noX = W/2 + gap/2;
+    const chip = (x, label, on, color) => {
+      fillRoundRect(x, by, bw, bh, 10, on ? color : 'rgba(255,255,255,0.06)');
+      hctx.lineWidth = 2;
+      hctx.strokeStyle = on ? color : 'rgba(255,255,255,0.25)';
+      roundRectPath(x, by, bw, bh, 10); hctx.stroke();
+      hctx.fillStyle = on ? '#0c1012' : WHITE;
+      hctx.font = '700 22px Orbitron, sans-serif';
+      hctx.textBaseline = 'middle';
+      hctx.fillText(label, x + bw/2, by + bh/2 + 1);
+      hctx.textBaseline = 'alphabetic';
+    };
+    chip(yesX, 'YES', shutdownSel === 'yes', RED);
+    chip(noX,  'NO',  shutdownSel === 'no',  GREEN);
+    hctx.textAlign = 'left';
+  } else if (performance.now() < shutdownTestFlashUntil) {
+    // TESTING MODE badge — confirms the Yes path fired without powering off.
+    const label = 'TEST · SHUTDOWN TRIGGERED';
+    hctx.font = '700 22px Orbitron, sans-serif';
+    const bw = hctx.measureText(label).width + 44, bh = 44, bx = W/2 - bw/2, by = H/2 - bh/2;
+    fillRoundRect(bx, by, bw, bh, 10, 'rgba(255,122,26,0.94)');
+    hctx.fillStyle = '#1a1204';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText(label, W/2, by + bh/2 + 1);
+    hctx.textBaseline = 'alphabetic';
     hctx.textAlign = 'left';
   }
 
@@ -722,7 +734,7 @@ function hudSignature() {
     telemetry.wifi_rssi_dbm, telemetry.rec_elapsed_s,
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
     ctrlLatency == null ? -1 : Math.round(ctrlLatency),
-    shutdownOpen, shutdownConfirming, shutdownSel,
+    shutdownOpen, shutdownSel, performance.now() < shutdownTestFlashUntil,
     // flash phases so the failsafe + low-storage indicators blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
     (telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0

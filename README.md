@@ -21,14 +21,21 @@ input from the Quest controllers over a websocket to drive the motors.
 
 ## Controls
 
-| Input                            | Action                              |
-| -------------------------------- | ----------------------------------- |
-| Left trigger                     | Throttle (squeeze to go)            |
-| Right thumbstick X               | Steer                               |
-| A — double-tap / single-tap      | Start / stop recording              |
-| X — tap                          | Toggle reverse (inverts throttle)   |
-| Y — double-tap                   | Toggle cruise (throttle hold)       |
-| Both grips + B                   | Open the shutdown-confirm popup     |
+Full Quest controller mapping (read via WebXR `inputSources` in the immersive
+session):
+
+- **Left trigger** — throttle (squeeze to go; 0 → full)
+- **Right thumbstick (X axis)** — steer
+- **A — double-tap** — start recording
+- **A — single-tap** — stop recording
+- **X — tap** — toggle reverse (inverts throttle direction)
+- **X — hold (while cruising)** — slow the cruise set-speed down
+- **Y — double-tap** — toggle cruise (holds the current throttle)
+- **Y — hold (while cruising)** — speed the cruise set-speed up
+- **Both grips + B** — open the graceful-shutdown confirm popup
+- **Shutdown popup: right stick ← / →** — move highlight between Yes / No
+- **Shutdown popup: A** — select the highlighted option
+- **Right trigger, left thumbstick** — reserved / unused
 
 **Cruise:** double-tap Y to lock the current throttle; while cruising, hold Y to
 speed up and hold X to slow down (reverse is locked out). Squeezing the trigger
@@ -36,10 +43,17 @@ past ~50% instantly disengages cruise.
 
 **Graceful shutdown:** hold both grips + B to open a confirm popup (defaults to
 **No**); the right stick moves the highlight, A selects, and it auto-cancels
-after 5 s. Selecting Yes stops the motors/lights, closes any recording cleanly,
-and powers the Pi down — so the SD card isn't corrupted by a hard power cut.
-The physical master switch stays the true cutoff, flipped only after this
-completes. The right trigger and left thumbstick are unused.
+after 5 s of no input. The intent is to stop the motors/lights, close any
+recording cleanly, and power the Pi down so a hard power cut can't corrupt the
+SD card, with the physical master switch as the true cutoff (flipped only after
+this completes).
+
+> **Testing mode (current):** the client call is intentionally **stubbed** — the
+> `/system/shutdown` endpoint exists on the server, but confirming Yes only logs
+> to the console and flashes a **TEST · SHUTDOWN TRIGGERED** badge on the HUD, so
+> the whole combo → popup → confirm flow can be exercised in-headset without ever
+> powering the Pi down. Going live is a one-line swap in `triggerShutdown()`
+> (`webxr_viewer.html`): uncomment the `fetch('/system/shutdown')` call.
 
 Steering is **differential thrust** (no rudder): `left = throttle + steer`,
 `right = throttle - steer`.

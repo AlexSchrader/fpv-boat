@@ -46,7 +46,7 @@ Read via `XRSession.inputSources` during the immersive session:
 - **A** — double-tap = start recording, single-tap = stop
 - **X** — tap toggles reverse; while cruising, hold = slow down
 - **Y** — double-tap toggles **cruise** (throttle hold); while cruising, hold = speed up
-- **Both grips + B** — opens the graceful-shutdown confirm popup (right stick chooses Yes/No, A selects, auto-cancels after 5 s, defaults to No). Selecting Yes hits `/system/shutdown`, which stops motors/lights, closes any recording, and powers the Pi down. Client-side popup state; the boat's drive is frozen while it's open.
+- **Both grips + B** — opens the graceful-shutdown confirm popup (right stick chooses Yes/No, A selects, auto-cancels after 5 s, defaults to No). Client-side popup state; the boat's drive is frozen while it's open. **Currently in testing mode:** confirming Yes only logs + flashes a `TEST · SHUTDOWN TRIGGERED` HUD badge — the real `fetch('/system/shutdown')` call in `triggerShutdown()` is stubbed behind a comment until the build is complete (one-line swap to go live). The `/system/shutdown` endpoint itself is live and, when called, stops motors/lights, closes any recording, and powers the Pi down via the shared `_safe_poweroff()` path.
 - **Right trigger, left thumbstick** — reserved / unused
 
 Cruise is **client-side**: it holds `cruiseSpeed` as the throttle, X/Y adjust it, reverse is locked out, and a trigger squeeze past ~50% disengages it (safety). The viewer streams `{throttle, steer, reverse}` to `/ws/control` at ~20 Hz — the Pi only ever sees the resulting throttle, so it stays dumb.
