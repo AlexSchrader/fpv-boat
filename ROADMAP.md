@@ -190,11 +190,12 @@ right_motor = throttle - steer
 
 1. **Pan/tilt camera + head tracking** — PCA9685 + 2x SG90 servos, WebXR head quaternion → websocket → servo angles. Blocked on servo hardware being confirmed in-hand and bench-tested (per earlier note, this hardware may still be pending).
 2. ~~**Cruise control**~~ ✅ **DONE** — Y double-tap toggles throttle-hold (captures current throttle); while cruising, hold Y to speed up / hold X to slow down, steer stays live, reverse is locked out. A fresh trigger squeeze past ~50% disengages (safety). CRUISE badge on the throttle gauge (green when active). Client-side in `webxr_viewer.html`.
-3. **Obstacle avoidance** — HC-SR04 ultrasonic sensor, auto-stop/steer-away logic.
-4. **Motor/driver upgrade** — 380-size motor + BTS7960 or dual DRV8871 driver, only after the stock-motor + L298N version is proven reliable.
-5. **Raspberry Pi AI Camera (IMX500)** — drop-in swap for the current camera module (same CSI mount), enables on-sensor AI inference without taxing the Pi's CPU.
-6. **Native Android/OpenXR app** — a genuine platform migration away from the browser-based WebXR approach, mentioned as the right move specifically when AI features get added, since it opens up more direct hardware/performance access than a browser page can offer. Not a small task — treat as its own project phase, not a "track" alongside the others.
-7. **Vision-based navigation / follow-me mode** — depends on #5 above being done first.
+3. ~~**In-headset graceful shutdown**~~ ✅ **DONE** — both grips + B open a confirm popup (right stick chooses Yes/No, A selects, defaults to No, auto-cancels after 5 s). Yes hits `/system/shutdown`, which stops motors/lights, closes any recording, then `sudo shutdown` — sharing the thermal monitor's `_safe_poweroff()` path so a hard power cut can't corrupt the SD card. The physical master switch stays the true cutoff, flipped only after this completes.
+4. **Obstacle avoidance** — HC-SR04 ultrasonic sensor, auto-stop/steer-away logic.
+5. **Motor/driver upgrade** — 380-size motor + BTS7960 or dual DRV8871 driver, only after the stock-motor + L298N version is proven reliable.
+6. **Raspberry Pi AI Camera (IMX500)** — drop-in swap for the current camera module (same CSI mount), enables on-sensor AI inference without taxing the Pi's CPU.
+7. **Native Android/OpenXR app** — a genuine platform migration away from the browser-based WebXR approach, mentioned as the right move specifically when AI features get added, since it opens up more direct hardware/performance access than a browser page can offer. Not a small task — treat as its own project phase, not a "track" alongside the others.
+8. **Vision-based navigation / follow-me mode** — depends on #6 above being done first.
 
 ---
 

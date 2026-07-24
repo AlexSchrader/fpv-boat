@@ -292,6 +292,37 @@ CPU_OVERHEAT_C = float(os.environ.get("CPU_OVERHEAT_C", "80"))
 _THERMAL_INTERVAL_S = 3
 _THERMAL_STRIKES = 3
 
+def _safe_poweroff(reason):
+    """Bring the boat to a safe state, then power the Pi down.
+
+    Shared by the thermal monitor and the in-headset shutdown combo so both
+    take the same path: zero the motors, kill the lights, close any active
+    recording cleanly (so the .mp4 isn't left half-written), then hand off to
+    `sudo shutdown`. Returns True if the shutdown command launched.
+    """
+    print(f"[system] shutting down: {reason} — stopping motors/lights/recording")
+    try:
+        motors.stop()
+    except Exception:
+        pass
+    try:
+        lights.off()
+    except Exception:
+        pass
+    global recording, h264_encoder
+    if recording and h264_encoder is not None:
+        try:
+            picam2.stop_encoder(h264_encoder)
+        except Exception:
+            pass
+        recording = False
+    try:
+        subprocess.Popen(["sudo", "shutdown", "-h", "now"])
+        return True
+    except Exception as e:
+        print(f"[system] shutdown failed ({e}); is passwordless sudo set up?")
+        return False
+
 async def thermal_monitor():
     strikes = 0
     while True:
@@ -301,26 +332,8 @@ async def thermal_monitor():
             strikes += 1
             print(f"[thermal] {t}C >= {CPU_OVERHEAT_C}C overheat strike {strikes}/{_THERMAL_STRIKES}")
             if strikes >= _THERMAL_STRIKES:
-                print("[thermal] OVERHEAT — stopping motors and shutting down the Pi")
-                try:
-                    motors.stop()
-                except Exception:
-                    pass
-                try:
-                    lights.off()
-                except Exception:
-                    pass
-                global recording, h264_encoder
-                if recording and h264_encoder is not None:
-                    try:
-                        picam2.stop_encoder(h264_encoder)
-                    except Exception:
-                        pass
-                    recording = False
-                try:
-                    subprocess.Popen(["sudo", "shutdown", "-h", "now"])
-                except Exception as e:
-                    print(f"[thermal] shutdown failed ({e}); is passwordless sudo set up?")
+                print("[thermal] OVERHEAT — shutting the Pi down to protect it")
+                _safe_poweroff(f"thermal overheat ({t}C)")
                 return
         else:
             strikes = 0
@@ -354,6 +367,15 @@ async def control_ws(request):
 async def control_status(request):
     return web.json_response(latest_control)
 
+async def system_shutdown(request):
+    # Graceful, in-headset power-off (both grips + B, confirmed in the viewer).
+    # Backgrounded via `sudo shutdown`, so respond before the box actually goes
+    # down — the client shows a "shutting down" state rather than awaiting a
+    # response the Pi may never send. Pairs with the physical master switch,
+    # which stays the true power cutoff, flipped only after this completes.
+    ok = _safe_poweroff("viewer shutdown combo")
+    return web.json_response({"status": "shutting down" if ok else "shutdown unavailable"})
+
 app = web.Application()
 app.on_startup.append(_on_startup)
 app.router.add_post("/offer", offer)
@@ -369,6 +391,7 @@ app.router.add_get("/viewer", viewer)
 app.router.add_get("/three.module.js", three_js)
 app.router.add_get("/ws/control", control_ws)
 app.router.add_get("/control_status", control_status)
+app.router.add_get("/system/shutdown", system_shutdown)
 
 if __name__ == "__main__":
     # WebXR needs a secure context: the Quest browser only exposes navigator.xr

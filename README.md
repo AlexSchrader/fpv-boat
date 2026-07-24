@@ -28,10 +28,18 @@ input from the Quest controllers over a websocket to drive the motors.
 | A — double-tap / single-tap      | Start / stop recording              |
 | X — tap                          | Toggle reverse (inverts throttle)   |
 | Y — double-tap                   | Toggle cruise (throttle hold)       |
+| Both grips + B                   | Open the shutdown-confirm popup     |
 
 **Cruise:** double-tap Y to lock the current throttle; while cruising, hold Y to
 speed up and hold X to slow down (reverse is locked out). Squeezing the trigger
-past ~50% instantly disengages cruise. `B`, right trigger, and grips are unused.
+past ~50% instantly disengages cruise.
+
+**Graceful shutdown:** hold both grips + B to open a confirm popup (defaults to
+**No**); the right stick moves the highlight, A selects, and it auto-cancels
+after 5 s. Selecting Yes stops the motors/lights, closes any recording cleanly,
+and powers the Pi down — so the SD card isn't corrupted by a hard power cut.
+The physical master switch stays the true cutoff, flipped only after this
+completes. The right trigger and left thumbstick are unused.
 
 Steering is **differential thrust** (no rudder): `left = throttle + steer`,
 `right = throttle - steer`.
@@ -92,6 +100,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `/offer`           | WebRTC signaling (POST)                            |
 | `/ws/control`      | Websocket: `{throttle, steer, reverse}` → motors   |
 | `/control_status`  | Last received control values (JSON)                |
+| `/system/shutdown` | Graceful power-off (stops motors/lights/recording, then `sudo shutdown`) |
 | `/record/start` `/record/stop` | Recording control (start auto-frees space) |
 | `/telemetry`       | Recording, storage, CPU temp/load, armed state (JSON) |
 | `/recordings`      | List clips — name, size, timestamp (JSON)          |

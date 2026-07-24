@@ -198,7 +198,8 @@ function stopRecording()  { fetch('/record/stop').catch(() => {}); }
 //   RIGHT button[4] = A -> double-tap start record / single-tap stop record
 //   LEFT  button[4] = X -> tap toggles reverse; while cruising, hold = speed down
 //   LEFT  button[5] = Y -> double-tap toggles cruise; while cruising, hold = speed up
-//   Reserved (ignored): B (right[5]), RIGHT trigger, grips, LEFT thumbstick
+//   BOTH grips (button[1]) + B (right[5]) -> open the shutdown confirm popup
+//   Reserved (ignored): RIGHT trigger, LEFT thumbstick
 const DEADZONE = 0.08;
 const DOUBLE_TAP_MS = 300;
 const CRUISE_RATE = 0.6;       // set-speed change per second while holding X/Y
@@ -208,6 +209,57 @@ let xPrev = false;
 let yPrev = false, yLastRise = -1e9, yDownSince = 0;
 let trigHighPrev = false;
 let lastPollTs = 0;
+
+// ---- in-VR graceful shutdown (both grips + B -> confirm popup) ----
+// The combo is deliberately awkward (three buttons across both controllers) so
+// it can't fire mid-flight by accident. It opens a confirm popup that defaults
+// to "No"; the right stick moves the highlight, A selects, and the popup
+// auto-cancels after 5 s of no input. Timing is driven off the animation loop's
+// nowMs (no setTimeout) so it stays in the single render loop.
+const SHUTDOWN_TIMEOUT_MS = 5000;
+let shutdownOpen = false;        // confirm popup visible
+let shutdownConfirming = false;  // request sent -> showing "shutting down…"
+let shutdownSel = 'no';          // highlighted option ('yes' | 'no')
+let shutdownLastInput = 0;       // for the 5 s inactivity auto-cancel
+let shutComboLatch = false;      // require the combo to release before it re-arms
+let shutNavPrev = false;         // right-stick nav edge
+
+function triggerShutdown() {
+  // The link drops as the Pi powers off mid-response — a failed fetch is expected here.
+  fetch('/system/shutdown').catch(() => {});
+}
+
+function updateShutdown(pad, nowMs) {
+  // Open on both grips + B, edge-latched so holding the combo can't reopen it.
+  const combo = pad.lg && pad.rg && pad.b;
+  if (combo && !shutComboLatch && !shutdownOpen) {
+    shutdownOpen = true;
+    shutdownConfirming = false;
+    shutdownSel = 'no';                 // safety default
+    shutdownLastInput = nowMs;
+    shutComboLatch = true;
+  }
+  if (!combo) shutComboLatch = false;
+
+  if (!shutdownOpen || shutdownConfirming) return;
+
+  // Right stick X moves the highlight: left = Yes, right = No (rising edge).
+  if (Math.abs(pad.steer) > 0.5) {
+    if (!shutNavPrev) { shutdownSel = pad.steer < 0 ? 'yes' : 'no'; shutdownLastInput = nowMs; }
+    shutNavPrev = true;
+  } else {
+    shutNavPrev = false;
+  }
+
+  // A selects the highlighted option.
+  if (pad.a && !aPrev) {
+    shutdownLastInput = nowMs;
+    if (shutdownSel === 'yes') { shutdownConfirming = true; triggerShutdown(); }
+    else { shutdownOpen = false; }
+  }
+
+  if (nowMs - shutdownLastInput > SHUTDOWN_TIMEOUT_MS) shutdownOpen = false;
+}
 
 function dz(v) { return Math.abs(v) < DEADZONE ? 0 : v; }
 
@@ -228,6 +280,9 @@ function readPads() {
       a: !!(right && right.buttons[4] && right.buttons[4].pressed),
       x: !!(left  && left.buttons[4]  && left.buttons[4].pressed),
       y: !!(left  && left.buttons[5]  && left.buttons[5].pressed),
+      b:  !!(right && right.buttons[5] && right.buttons[5].pressed),
+      lg: !!(left  && left.buttons[1]  && left.buttons[1].pressed),   // left grip (squeeze)
+      rg: !!(right && right.buttons[1] && right.buttons[1].pressed),  // right grip (squeeze)
     };
   }
   // Desktop fallback: standard gamepad (right stick axis2 = steer, left trigger
@@ -241,6 +296,9 @@ function readPads() {
     a: !!(gp.buttons[0] && gp.buttons[0].pressed),
     x: !!(gp.buttons[2] && gp.buttons[2].pressed),
     y: !!(gp.buttons[3] && gp.buttons[3].pressed),
+    // grips/B have no standard desktop-gamepad equivalent, so the shutdown
+    // combo is VR-only (it needs both grips simultaneously anyway).
+    b: false, lg: false, rg: false,
   };
 }
 
@@ -257,6 +315,18 @@ function pollControllers(nowMs) {
   control.connected = true;
   control.steer = pad.steer;
   const trig = pad.throttle;
+
+  // The in-VR shutdown popup takes over input while open. Swallow this frame's
+  // buttons (freeze drive, keep edge state fresh) both while it's open and on
+  // the frame it closes, so the confirming A press can't leak into the record
+  // toggle below.
+  const popupWasOpen = shutdownOpen;
+  updateShutdown(pad, nowMs);
+  if (shutdownOpen || popupWasOpen) {
+    control.throttle = 0; control.steer = 0;
+    aPrev = pad.a; xPrev = pad.x; yPrev = pad.y; trigHighPrev = trig > 0.5;
+    return;
+  }
 
   // A: rising edge. Double-tap within window -> start; a lone tap -> stop.
   if (pad.a && !aPrev) {
@@ -588,6 +658,49 @@ function drawHud() {
             false, control.cruise ? 'on' : 'off');
   drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
 
+  // ---- shutdown confirm popup (both grips + B) ----
+  if (shutdownOpen) {
+    hctx.fillStyle = 'rgba(0,0,0,0.5)';        // scrim to focus the modal
+    hctx.fillRect(0, 0, W, H);
+    const pw = 540, ph = 210, px = W/2 - pw/2, py = H/2 - ph/2;
+    fillRoundRect(px, py, pw, ph, 16, 'rgba(16,20,22,0.96)');
+    hctx.lineWidth = 2; hctx.strokeStyle = RED; roundRectPath(px, py, pw, ph, 16); hctx.stroke();
+
+    hctx.textAlign = 'center';
+    if (shutdownConfirming) {
+      hctx.fillStyle = RED;
+      hctx.font = '700 32px Orbitron, sans-serif';
+      hctx.fillText('SHUTTING DOWN…', W/2, py + 108);
+      hctx.fillStyle = LABEL_COLOR;
+      hctx.font = '600 16px Rajdhani, sans-serif';
+      hctx.fillText('Safe to flip the master switch once the Pi is off.', W/2, py + 148);
+    } else {
+      hctx.fillStyle = WHITE;
+      hctx.font = '700 30px Orbitron, sans-serif';
+      hctx.fillText('SHUT DOWN BOAT?', W/2, py + 58);
+      hctx.fillStyle = LABEL_COLOR;
+      hctx.font = '600 15px Rajdhani, sans-serif';
+      hctx.fillText('Stick ← / → to choose · A to select', W/2, py + 88);
+
+      const bw = 180, bh = 54, gap = 28, by = py + ph - bh - 26;
+      const yesX = W/2 - bw - gap/2, noX = W/2 + gap/2;
+      const chip = (x, label, on, color) => {
+        fillRoundRect(x, by, bw, bh, 10, on ? color : 'rgba(255,255,255,0.06)');
+        hctx.lineWidth = 2;
+        hctx.strokeStyle = on ? color : 'rgba(255,255,255,0.25)';
+        roundRectPath(x, by, bw, bh, 10); hctx.stroke();
+        hctx.fillStyle = on ? '#0c1012' : WHITE;
+        hctx.font = '700 22px Orbitron, sans-serif';
+        hctx.textBaseline = 'middle';
+        hctx.fillText(label, x + bw/2, by + bh/2 + 1);
+        hctx.textBaseline = 'alphabetic';
+      };
+      chip(yesX, 'YES', shutdownSel === 'yes', RED);
+      chip(noX,  'NO',  shutdownSel === 'no',  GREEN);
+    }
+    hctx.textAlign = 'left';
+  }
+
   hudTexture.needsUpdate = true;
 }
 
@@ -609,6 +722,7 @@ function hudSignature() {
     telemetry.wifi_rssi_dbm, telemetry.rec_elapsed_s,
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
     ctrlLatency == null ? -1 : Math.round(ctrlLatency),
+    shutdownOpen, shutdownConfirming, shutdownSel,
     // flash phases so the failsafe + low-storage indicators blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
     (telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0
