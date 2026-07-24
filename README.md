@@ -9,9 +9,9 @@ input from the Quest controllers over a websocket to drive the motors.
 
 - **Live FPV video** — WebRTC (`aiortc` + `picamera2`), 1280×720, head-locked
   video plane rendered in immersive VR.
-- **Telemetry HUD** — link quality + ping, recording status, storage, and live
-  throttle/steer gauges (with a REV badge and L/R steer markers). Battery is a
-  placeholder pending a voltage sensor.
+- **Telemetry HUD** — link quality + ping, recording status, storage, battery
+  (voltage + charge %, via an INA219), and live throttle/steer gauges (with a
+  REV badge and L/R steer markers).
 - **Simultaneous recording** — H.264 to `~/recordings/`, runs alongside the
   live stream; start/stop from the controller.
 - **Controller input** — Quest controllers read via WebXR `inputSources`;
@@ -97,6 +97,10 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 | `RECORD_BITRATE` | `0` (encoder default) | H.264 record bitrate, bits/sec |
 | `CPU_OVERHEAT_C` | `80` | CPU temp that triggers auto-shutdown |
 | `RECORDINGS_MIN_FREE_GB` | `2.0` | Free-space floor before auto-deleting oldest clips (`0` disables) |
+| `BATTERY_CELLS` | `3` | LiPo cell count in series (sets the voltage→% curve) |
+| `BATTERY_SHUNT_OHMS` | `0.1` | INA219 shunt resistance |
+| `BATTERY_MAX_AMPS` | _(auto)_ | Expected max current (tunes INA219 gain) |
+| `BATTERY_WARN_PCT` | `25` | Charge % at which the HUD flashes LOW BATTERY (≤10% = CRITICAL) |
 
 The **stream (lores) is software-encoded by aiortc**, so its resolution is the
 main driver of CPU load/heat — the default is 960×540 to keep temps down.
@@ -133,6 +137,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `webrtc_stream.py` | Main server: WebRTC video, recording, telemetry, control websocket, optional HTTPS |
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
 | `lights_control.py` | Front/rear LED lights, GPIO-switched, auto-on with recording (bench-test: `python3 lights_control.py`) |
+| `battery_control.py` | LiPo telemetry via INA219 (voltage/current/charge %); no-op without the sensor (bench-test: `python3 battery_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `clips.html` | Recordings manager page (served at `/clips`) |
 | `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |

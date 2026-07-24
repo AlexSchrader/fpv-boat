@@ -143,6 +143,35 @@ LED group positive -----> 5V rail (buck converter output)
 
 Change the pins in `lights_control.py` (`FRONT_PIN` / `REAR_PIN`) if you rewire.
 
+## Battery telemetry (INA219)
+
+Pack voltage + current come from an **INA219** breakout over I2C (the Pi has no
+native ADC). Wire it **high-side, in series** on the battery line so it sees the
+full pack:
+
+| INA219 pin | Connect to |
+| ---------- | ---------- |
+| VCC        | Pi 3V3 (pin 1) |
+| GND        | Pi GND (shared) |
+| SDA        | GPIO2 / pin 3 |
+| SCL        | GPIO3 / pin 5 |
+| Vin+       | Battery **+** (pack positive) |
+| Vin−       | Downstream load (→ buck converter input) |
+
+Enable I2C once (`sudo raspi-config` → Interface → I2C) and install the lib:
+`pip3 install pi-ina219`. Confirm the sensor shows at `0x40` with
+`i2cdetect -y 1`. Then `python3 battery_control.py` prints live reads.
+
+**Shunt/current caveat:** the standard breakout has a 0.1 Ω shunt rated ~3.2 A.
+The motors + Pi can peak past that, which clips the *current* reading (voltage is
+unaffected). For accurate current at full throttle, use an INA226 or swap in a
+lower-value shunt and set `BATTERY_SHUNT_OHMS` / `BATTERY_MAX_AMPS`. Voltage —
+the safety-critical number — is fine on the stock board.
+
+Set `BATTERY_CELLS` to your pack's series count (default 3 → 3S) so the
+voltage→charge-% curve is right. Below `BATTERY_WARN_PCT` (default 25%) the HUD
+flashes **LOW BATTERY**; at ≤10% it flashes **BATTERY CRITICAL**.
+
 ## Control mapping (from the headset)
 
 | Input                          | Action                                  |

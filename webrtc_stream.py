@@ -203,6 +203,7 @@ def _cpu_load():
 async def telemetry(request):
     total, used, free = shutil.disk_usage(RECORDINGS_DIR)
     load1, load_frac = _cpu_load()
+    batt = battery.read()
     return web.json_response({
         "recording": recording,
         "file": current_filename,
@@ -214,6 +215,11 @@ async def telemetry(request):
         "armed": motors.armed,
         "lights_on": lights.state,
         "reverse_lights_on": lights.reverse_state,
+        "battery_voltage": batt["voltage"],
+        "battery_current_ma": batt["current_ma"],
+        "battery_percent": batt["percent"],
+        "battery_cells": batt["cells"],
+        "battery_warn_pct": battery.warn_pct,
         "recordings_min_free_gb": RECORDINGS_MIN_FREE_GB,
         "wifi_rssi_dbm": _wifi_rssi_dbm(),
         "mem_free_mb": _mem_free_mb(),
@@ -286,6 +292,11 @@ motors = MotorController()
 # by record start/stop rather than a controller button. No-op if gpiozero absent.
 from lights_control import LightController
 lights = LightController()
+
+# LiPo battery telemetry via INA219 (see battery_control.py). Reports all-None
+# until the sensor is wired / the ina219 lib is present, so the HUD just shows --%.
+from battery_control import BatteryMonitor
+battery = BatteryMonitor()
 
 # Thermal safety: if the CPU sustains this temperature, shut the Pi down to
 # protect it. The check needs a few consecutive strikes so a transient spike

@@ -652,10 +652,14 @@ function drawHud() {
   const cx0 = (i) => iL + i * colW + 6;
 
   hctx.textAlign = 'left';
+  const battPct = telemetry.battery_percent;
+  const battV = telemetry.battery_voltage;
+  const battWarn = telemetry.battery_warn_pct != null ? telemetry.battery_warn_pct : 25;
   hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('BAT', cx0(0), r2Label);
-  hctx.font = '600 15px Orbitron, sans-serif'; hctx.fillStyle = GHOST;
-  hctx.fillText('--%', cx0(0), r2Val);
+  hctx.fillText(battV != null ? 'BAT ' + battV.toFixed(1) + 'V' : 'BAT', cx0(0), r2Label);
+  hctx.font = '600 15px Orbitron, sans-serif';
+  hctx.fillStyle = battPct == null ? GHOST : battPct <= 10 ? RED : battPct <= battWarn ? ORANGE : WHITE;
+  hctx.fillText(battPct != null ? battPct + '%' : '--%', cx0(0), r2Val);
 
   hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.2)';
   hctx.beginPath(); hctx.arc(cx0(1) + 4, r2Label - 4, 4, 0, Math.PI * 2); hctx.fill();
@@ -684,20 +688,28 @@ function drawHud() {
   hctx.fillStyle = (t == null) ? GHOST : (t < 70 ? WHITE : t < 80 ? YELLOW : RED);
   hctx.fillText(t != null ? Math.round(t) + '°C' : '--°C', cx0(3), r2Val);
 
-  // ---- LOW STORAGE badge (flashes below the card once free space crosses the
-  // same floor that triggers auto-cleanup) ----
+  // ---- below-card alerts (flash; stack vertically when more than one is live) ----
+  const alerts = [];
+  if (battPct != null && battPct <= 10)
+    alerts.push({ label: 'BATTERY CRITICAL', bg: 'rgba(255,43,43,0.95)', fg: '#ffffff' });
+  else if (battPct != null && battPct <= battWarn)
+    alerts.push({ label: 'LOW BATTERY', bg: 'rgba(255,122,26,0.94)', fg: '#1a1204' });
   const freeGb = telemetry.storage_free_gb, floorGb = telemetry.recordings_min_free_gb;
-  if (freeGb != null && floorGb != null && floorGb > 0 && freeGb < floorGb
-      && Math.floor(performance.now() / 450) % 2 === 0) {
+  if (freeGb != null && floorGb != null && floorGb > 0 && freeGb < floorGb)
+    alerts.push({ label: 'LOW STORAGE', bg: 'rgba(255,122,26,0.94)', fg: '#1a1204' });
+  if (alerts.length && Math.floor(performance.now() / 450) % 2 === 0) {
     hctx.font = '700 15px Orbitron, sans-serif';
-    const label = 'LOW STORAGE';
-    const pw = hctx.measureText(label).width + 30, ph = 26, px = W/2 - pw/2, py = cardY + cardH + 10;
-    fillRoundRect(px, py, pw, ph, 7, 'rgba(255,122,26,0.94)');
-    hctx.fillStyle = '#1a1204';
     hctx.textAlign = 'center';
     hctx.textBaseline = 'middle';
-    hctx.fillText(label, W/2, py + ph/2 + 1);
+    alerts.forEach((a, i) => {
+      const pw = hctx.measureText(a.label).width + 30, ph = 26;
+      const px = W/2 - pw/2, py = cardY + cardH + 10 + i * 32;
+      fillRoundRect(px, py, pw, ph, 7, a.bg);
+      hctx.fillStyle = a.fg;
+      hctx.fillText(a.label, W/2, py + ph/2 + 1);
+    });
     hctx.textBaseline = 'alphabetic';
+    hctx.textAlign = 'left';
   }
 
   const ghostCtl = !control.connected;
@@ -769,6 +781,15 @@ drawHud();
 // canvas texture every frame (that constant GPU churn was causing dropped
 // frames / black-flash reprojection in VR).
 let lastHudSig = '';
+// True when any below-card alert badge (low battery / low storage) should show —
+// used both to blink it (flash phase in the signature) and drive its dirty-check.
+function belowCardAlertActive() {
+  const bp = telemetry.battery_percent, bw = telemetry.battery_warn_pct;
+  const lowBatt = bp != null && bp <= (bw != null ? bw : 25);
+  const lowStore = telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0
+    && telemetry.storage_free_gb < telemetry.recordings_min_free_gb;
+  return lowBatt || lowStore;
+}
 function hudSignature() {
   return [
     control.throttle.toFixed(2), control.steer.toFixed(2),
@@ -780,11 +801,10 @@ function hudSignature() {
     ctrlLatency == null ? -1 : Math.round(ctrlLatency),
     shutdownOpen, shutdownSel, shutdownInProgress,
     telemetry.lights_on, telemetry.reverse_lights_on,
-    // flash phases so the failsafe + low-storage indicators blink via the dirty-check
+    telemetry.battery_percent, telemetry.battery_voltage, telemetry.battery_warn_pct,
+    // flash phases so the failsafe + below-card alert badges blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
-    (telemetry.storage_free_gb != null && telemetry.recordings_min_free_gb > 0
-      && telemetry.storage_free_gb < telemetry.recordings_min_free_gb)
-      ? Math.floor(performance.now() / 450) % 2 : 0
+    (belowCardAlertActive() ? Math.floor(performance.now() / 450) % 2 : 0)
   ].join('|');
 }
 
