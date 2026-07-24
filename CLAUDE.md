@@ -23,6 +23,7 @@ A Meta Quest 2 FPV-controlled RC boat. A Raspberry Pi Zero 2 W on the boat strea
   - `/recordings`, `/recordings/download?file=NAME`, `/recordings/delete?file=NAME` — list/download/delete clips (basename-guarded; delete refuses the active file)
   - `/telemetry` — JSON status (recording state, disk space, CPU temp + load)
   - `/control_status` — last received control values
+  - `/lights/toggle` — manual running-lights toggle (single-tap Y); `lights.reverse()` (rear backup lights) is driven from `/ws/control`'s reverse flag, not a route
   - `/system/shutdown` — graceful power-off (both-grips+B combo in the viewer); shares the thermal monitor's `_safe_poweroff()` path (stop motors/lights, close recording, `sudo shutdown`)
   - `/viewer`, `/clips`, `/three.module.js` — serves the client (VR viewer, recordings manager page, Three.js)
   - `/ws/control` — websocket, receives `{throttle, steer, reverse}` from the browser. Stores `latest_control` **and** drives `motor_control.py` (`motors.set_drive`). No-op physically until the L298N is wired, but the software path is complete.
@@ -44,8 +45,9 @@ Read via `XRSession.inputSources` during the immersive session:
 - **Left trigger** → throttle (0..1)
 - **Right thumbstick X** → steer
 - **A** — double-tap = start recording, single-tap = stop
-- **X** — tap toggles reverse; while cruising, hold = slow down
-- **Y** — double-tap toggles **cruise** (throttle hold); while cruising, hold = speed up
+- **X** — double-tap toggles **cruise** (throttle hold); while cruising, hold = speed up
+- **Y** — single-tap toggles **lights** (`/lights/toggle`); double-tap toggles **reverse**; while cruising, hold = slow down. (Taps resolve on release so a hold-to-slow never fires an action.)
+- Rear **reverse lights** (future install) auto-on in reverse — server-driven off the reverse flag (`lights.reverse()`), no button.
 - **Both grips + B** — opens the graceful-shutdown confirm popup (right stick chooses Yes/No, A selects, auto-cancels after 5 s, defaults to No). Client-side popup state; the boat's drive is frozen while it's open. **Currently in testing mode:** confirming Yes only logs + flashes a `TEST · SHUTDOWN TRIGGERED` HUD badge — the real `fetch('/system/shutdown')` call in `triggerShutdown()` is stubbed behind a comment until the build is complete (one-line swap to go live). The `/system/shutdown` endpoint itself is live and, when called, stops motors/lights, closes any recording, and powers the Pi down via the shared `_safe_poweroff()` path.
 - **Right trigger, left thumbstick** — reserved / unused
 

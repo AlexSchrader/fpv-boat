@@ -351,6 +351,8 @@ async def control_ws(request):
                 latest_control["throttle"] = float(data.get("throttle", 0.0))
                 latest_control["steer"] = float(data.get("steer", 0.0))
                 latest_control["reverse"] = bool(data.get("reverse", False))
+                # rear backup lights follow reverse mode (no-op until wired)
+                lights.reverse(latest_control["reverse"])
                 # throttle already carries the reverse sign from the client;
                 # steering is differential, handled inside set_drive()
                 motors.set_drive(latest_control["throttle"], latest_control["steer"])
@@ -360,12 +362,19 @@ async def control_ws(request):
                     await ws.send_json({"ack": ts})
             except Exception:
                 pass
-    # stop the motors if the control link drops
+    # stop the motors (and drop reverse lights) if the control link drops
     motors.stop()
+    lights.reverse(False)
     return ws
 
 async def control_status(request):
     return web.json_response(latest_control)
+
+async def lights_toggle(request):
+    # Manual running-lights toggle (single-tap Y in the viewer). Independent of
+    # the auto-on-with-recording behavior — just flips the same LED groups.
+    state = lights.toggle()
+    return web.json_response({"lights": "on" if state else "off"})
 
 async def system_shutdown(request):
     # Graceful, in-headset power-off (both grips + B, confirmed in the viewer).
@@ -391,6 +400,7 @@ app.router.add_get("/viewer", viewer)
 app.router.add_get("/three.module.js", three_js)
 app.router.add_get("/ws/control", control_ws)
 app.router.add_get("/control_status", control_status)
+app.router.add_get("/lights/toggle", lights_toggle)
 app.router.add_get("/system/shutdown", system_shutdown)
 
 if __name__ == "__main__":

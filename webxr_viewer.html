@@ -187,26 +187,31 @@ function sendControl(nowMs) {
   } catch (e) {}
 }
 
-// ---- recording control (A button) ----
+// ---- recording + lights control ----
 function startRecording() { fetch('/record/start').catch(() => {}); }
 function stopRecording()  { fetch('/record/stop').catch(() => {}); }
+function toggleLights()    { fetch('/lights/toggle').catch(() => {}); }
 
 // ---- controller reading ----
 // Mapping (Quest / xr-standard):
-//   LEFT  trigger (buttons[0].value) -> throttle (0..1; X toggles reverse to flip it)
+//   LEFT  trigger (buttons[0].value) -> throttle (0..1; reverse flips its sign)
 //   RIGHT thumbstick X (axes[2]) -> steer
 //   RIGHT button[4] = A -> double-tap start record / single-tap stop record
-//   LEFT  button[4] = X -> tap toggles reverse; while cruising, hold = speed down
-//   LEFT  button[5] = Y -> double-tap toggles cruise; while cruising, hold = speed up
+//   LEFT  button[4] = X -> double-tap toggles cruise; while cruising, hold = speed UP
+//   LEFT  button[5] = Y -> single-tap toggles lights / double-tap toggles reverse;
+//                          while cruising, hold = speed DOWN
 //   BOTH grips (button[1]) + B (right[5]) -> open the shutdown confirm popup
 //   Reserved (ignored): RIGHT trigger, LEFT thumbstick
+// Rear "reverse lights" (future hardware) come on automatically in reverse — the
+// server drives them off the reverse flag, no button of their own.
 const DEADZONE = 0.08;
 const DOUBLE_TAP_MS = 300;
+const TAP_MAX_MS = 250;        // a Y press shorter than this is a tap (vs a hold-to-adjust)
 const CRUISE_RATE = 0.6;       // set-speed change per second while holding X/Y
-const CRUISE_HOLD_MS = 320;    // must hold Y past this before it ramps (vs double-tap)
+const CRUISE_HOLD_MS = 320;    // must hold past this before it ramps (vs a tap/double-tap)
 let aPrev = false, aStopTimer = null;
-let xPrev = false;
-let yPrev = false, yLastRise = -1e9, yDownSince = 0;
+let xPrev = false, xLastRise = -1e9, xDownSince = 0;   // X now drives cruise (old Y role)
+let yPrev = false, yDownSince = 0, yLightsTimer = null; // Y now drives lights (tap) / reverse (double)
 let trigHighPrev = false;
 let lastPollTs = 0;
 
@@ -349,17 +354,33 @@ function pollControllers(nowMs) {
   }
   aPrev = pad.a;
 
-  // Y: double-tap toggles cruise. On engage, capture the current throttle.
-  if (pad.y && !yPrev) {
-    yDownSince = nowMs;
-    if (nowMs - yLastRise < DOUBLE_TAP_MS) {
+  // X: double-tap toggles cruise. On engage, capture the current throttle.
+  if (pad.x && !xPrev) {
+    xDownSince = nowMs;
+    if (nowMs - xLastRise < DOUBLE_TAP_MS) {
       control.cruise = !control.cruise;
       if (control.cruise) { control.cruiseSpeed = trig; control.reverse = false; }
-      yLastRise = -1e9;           // consumed; this press won't ramp
+      xLastRise = -1e9;           // consumed; this press won't ramp
     } else {
-      yLastRise = nowMs;
+      xLastRise = nowMs;
     }
   }
+
+  // Y: taps are resolved on release so a hold (speed-down while cruising) never
+  // fires an action. A lone tap -> lights toggle; a second tap within the window
+  // -> reverse toggle (locked out while cruising).
+  if (!pad.y && yPrev) {                       // falling edge (release)
+    const held = nowMs - yDownSince;
+    if (held < TAP_MAX_MS) {
+      if (yLightsTimer !== null) {             // this is the 2nd quick tap -> double-tap
+        clearTimeout(yLightsTimer); yLightsTimer = null;
+        if (!control.cruise) control.reverse = !control.reverse;
+      } else {                                 // 1st tap -> lights, unless a 2nd tap arrives
+        yLightsTimer = setTimeout(() => { yLightsTimer = null; toggleLights(); }, DOUBLE_TAP_MS);
+      }
+    }
+  }
+  if (pad.y && !yPrev) yDownSince = nowMs;     // rising edge
 
   // Safety: a *fresh* trigger squeeze past 50% breaks cruise and hands back
   // manual control. Rising-edge only, so engaging cruise while already holding
@@ -369,16 +390,16 @@ function pollControllers(nowMs) {
   trigHighPrev = trigHigh;
 
   if (control.cruise) {
-    // hold Y -> faster, hold X -> slower (Y must be held past the double-tap window)
-    const yHeld = pad.y && yLastRise > 0 && (nowMs - yDownSince) > CRUISE_HOLD_MS;
-    if (yHeld)  control.cruiseSpeed = Math.min(1, control.cruiseSpeed + CRUISE_RATE * dt);
-    if (pad.x)  control.cruiseSpeed = Math.max(0, control.cruiseSpeed - CRUISE_RATE * dt);
+    // hold X -> faster (X is the cruise button), hold Y -> slower. Both must be
+    // held past CRUISE_HOLD_MS so a quick tap can't nudge the set-speed.
+    const xHeld = pad.x && xLastRise > 0 && (nowMs - xDownSince) > CRUISE_HOLD_MS;
+    const yHeld = pad.y && (nowMs - yDownSince) > CRUISE_HOLD_MS;
+    if (xHeld)  control.cruiseSpeed = Math.min(1, control.cruiseSpeed + CRUISE_RATE * dt);
+    if (yHeld)  control.cruiseSpeed = Math.max(0, control.cruiseSpeed - CRUISE_RATE * dt);
     control.reverse = false;        // reverse locked out while cruising
     control.throttle = control.cruiseSpeed;
   } else {
     control.throttle = trig;
-    // X: rising edge toggles reverse (only when not cruising)
-    if (pad.x && !xPrev) control.reverse = !control.reverse;
   }
 
   xPrev = pad.x;
@@ -587,9 +608,10 @@ function drawHud() {
   const segs = [
     { w: 3 * 11 + 5, draw: drawBars },
     mkText(lastPingMs !== null ? lastPingMs + 'ms' : '--', WHITE, '600 13px Rajdhani, sans-serif'),
-    mkText((videoFps > 0 ? videoFps : '--') + 'fps', LABEL_COLOR, '600 12px Rajdhani, sans-serif'),
+    mkText((videoFps > 0 ? videoFps : '--') + 'fps', WHITE, '600 12px Rajdhani, sans-serif'),
     mkText('ctl ' + (ctrlLatency == null ? '--' : Math.round(ctrlLatency) + 'ms'),
-           ctrlLatency == null ? LABEL_COLOR : ctrlLatency < 60 ? LABEL_COLOR : ctrlLatency < 150 ? ORANGE : RED,
+           // white like the rest of the row; only turns red when the control loop is genuinely laggy
+           ctrlLatency != null && ctrlLatency >= 150 ? RED : WHITE,
            '600 12px Rajdhani, sans-serif'),
     mkText(rssi != null ? rssi + 'dBm' : '--dBm',
            rssi == null ? LABEL_COLOR : rssi >= -60 ? WHITE : rssi >= -72 ? ORANGE : RED,
@@ -629,7 +651,7 @@ function drawHud() {
   hctx.fillText(recTxt, cx0(1), r2Val);
 
   hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
-  hctx.fillText('STOR', cx0(2), r2Label);
+  hctx.fillText('STORAGE', cx0(2), r2Label);
   const usedGb = (telemetry.storage_free_gb !== null && telemetry.storage_total_gb)
     ? Math.round(telemetry.storage_total_gb - telemetry.storage_free_gb) : '--';
   const totalGb = telemetry.storage_total_gb !== null ? Math.round(telemetry.storage_total_gb) : 128;
