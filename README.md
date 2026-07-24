@@ -105,6 +105,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | ---- | ------- |
 | `webrtc_stream.py` | Main server: WebRTC video, recording, telemetry, control websocket, optional HTTPS |
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
+| `lights_control.py` | Front/rear LED lights, GPIO-switched, auto-on with recording (bench-test: `python3 lights_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `clips.html` | Recordings manager page (served at `/clips`) |
 | `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |

@@ -140,6 +140,7 @@ async def record_start(request):
     h264_encoder = H264Encoder(bitrate=RECORD_BITRATE) if RECORD_BITRATE > 0 else H264Encoder()
     picam2.start_encoder(h264_encoder, FileOutput(current_filename))
     recording = True
+    lights.on()
 
     return web.json_response({"status": "recording started", "file": current_filename})
 
@@ -150,6 +151,7 @@ async def record_stop(request):
 
     picam2.stop_encoder(h264_encoder)
     recording = False
+    lights.off()
     finished_file = current_filename
     h264_encoder = None
     current_filename = None
@@ -278,6 +280,11 @@ latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
 from motor_control import MotorController
 motors = MotorController()
 
+# Front/rear running lights (GPIO-switched, see lights_control.py). Auto-triggered
+# by record start/stop rather than a controller button. No-op if gpiozero absent.
+from lights_control import LightController
+lights = LightController()
+
 # Thermal safety: if the CPU sustains this temperature, shut the Pi down to
 # protect it. The check needs a few consecutive strikes so a transient spike
 # doesn't trigger it. Requires passwordless `sudo shutdown` (see HARDWARE.md).
@@ -297,6 +304,10 @@ async def thermal_monitor():
                 print("[thermal] OVERHEAT — stopping motors and shutting down the Pi")
                 try:
                     motors.stop()
+                except Exception:
+                    pass
+                try:
+                    lights.off()
                 except Exception:
                     pass
                 global recording, h264_encoder
