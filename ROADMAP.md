@@ -205,12 +205,14 @@ right_motor = throttle - steer
 
 ### I.1 — Running Lights — ✅ DONE (v1, simpler scheme)
 
-> Shipped: `lights_control.py` (`LightController.on()/off()`, no-op without
-> gpiozero) switches both LED groups **together, auto-triggered by recording**
-> (on at `/record/start`, off at `/record/stop` + thermal shutdown). Pins in
-> `HARDWARE.md`. NOTE: this is simpler than the original plan below (B-tap toggle
-> / B-hold strobe / rear mirrors reverse) — no controller button, no strobe, no
-> separate reverse-linked rear. Those remain a possible enhancement.
+> Shipped: `lights_control.py` (`LightController.on()/off()/toggle()`, no-op
+> without gpiozero) switches both LED groups **together**, auto-triggered by
+> recording (on at `/record/start`, off at `/record/stop` + thermal shutdown)
+> **and manually via single-tap Y** (`/lights/toggle`). A separate
+> reverse-linked rear channel (`lights.reverse()`, GPIO22) is wired into the
+> control websocket so rear "backup" lights auto-on in reverse — **pin claimed,
+> LEDs pending install**. Pins in `HARDWARE.md`. Still unimplemented from the
+> original plan below: the B-hold **strobe** mode.
 
 **Original plan — Running Lights (dual-group, reverse-linked):**
 

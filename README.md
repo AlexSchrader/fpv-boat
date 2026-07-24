@@ -28,17 +28,22 @@ session):
 - **Right thumbstick (X axis)** — steer
 - **A — double-tap** — start recording
 - **A — single-tap** — stop recording
-- **X — tap** — toggle reverse (inverts throttle direction)
-- **X — hold (while cruising)** — slow the cruise set-speed down
-- **Y — double-tap** — toggle cruise (holds the current throttle)
-- **Y — hold (while cruising)** — speed the cruise set-speed up
+- **X — double-tap** — toggle cruise (holds the current throttle)
+- **X — hold (while cruising)** — speed the cruise set-speed up
+- **Y — single-tap** — toggle running lights (manual; also auto-on with recording)
+- **Y — double-tap** — toggle reverse (inverts throttle direction)
+- **Y — hold (while cruising)** — slow the cruise set-speed down
 - **Both grips + B** — open the graceful-shutdown confirm popup
 - **Shutdown popup: right stick ← / →** — move highlight between Yes / No
 - **Shutdown popup: A** — select the highlighted option
 - **Right trigger, left thumbstick** — reserved / unused
 
-**Cruise:** double-tap Y to lock the current throttle; while cruising, hold Y to
-speed up and hold X to slow down (reverse is locked out). Squeezing the trigger
+Rear **reverse ("backup") lights** — future install — come on automatically
+whenever reverse is engaged; the server drives them off the reverse flag, so
+they have no button of their own.
+
+**Cruise:** double-tap X to lock the current throttle; while cruising, hold X to
+speed up and hold Y to slow down (reverse is locked out). Squeezing the trigger
 past ~50% instantly disengages cruise.
 
 **Graceful shutdown:** hold both grips + B to open a confirm popup (defaults to
@@ -114,6 +119,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `/offer`           | WebRTC signaling (POST)                            |
 | `/ws/control`      | Websocket: `{throttle, steer, reverse}` → motors   |
 | `/control_status`  | Last received control values (JSON)                |
+| `/lights/toggle`   | Toggle the running lights (manual; single-tap Y)   |
 | `/system/shutdown` | Graceful power-off (stops motors/lights/recording, then `sudo shutdown`) |
 | `/record/start` `/record/stop` | Recording control (start auto-frees space) |
 | `/telemetry`       | Recording, storage, CPU temp/load, armed state (JSON) |

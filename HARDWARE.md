@@ -117,14 +117,22 @@ in `triggerShutdown()` is uncommented.
 Two LED groups (4 white front, 4 red rear), each switched by its own NPN
 transistor — GPIO can't safely source the LEDs' combined current, so it just
 drives the transistor base. **Lights auto-turn-on with recording** (on at
-`/record/start`, off at `/record/stop` and on thermal shutdown); both groups
-switch together. Code: `lights_control.py` (`python3 lights_control.py` to
-bench-blink). No-op without `gpiozero`.
+`/record/start`, off at `/record/stop` and on thermal shutdown) **and can be
+toggled manually** (single-tap Y → `/lights/toggle`); both groups switch
+together. Code: `lights_control.py` (`python3 lights_control.py` to bench-blink).
+No-op without `gpiozero`.
+
+A third channel drives rear **reverse ("backup") lights** that come on
+automatically whenever the boat is in reverse (the server calls
+`lights.reverse()` off the control websocket's reverse flag). These LEDs aren't
+installed yet — the pin is already claimed so wiring is drop-in, and it stays a
+no-op until then. Wire it like the other groups (GPIO → 1k → transistor base).
 
 | Function          | BCM    | Physical pin |
 | ----------------- | ------ | ------------ |
 | White front group | GPIO17 | **11**       |
 | Red rear group    | GPIO27 | **13**       |
+| Reverse lights    | GPIO22 | **15** (future install) |
 
 Per group:
 ```
@@ -144,8 +152,9 @@ Change the pins in `lights_control.py` (`FRONT_PIN` / `REAR_PIN`) if you rewire.
 | Right thumbstick X             | Steer                                   |
 | A — double-tap                 | Start recording                         |
 | A — single-tap                 | Stop recording                          |
-| X — tap                        | Toggle reverse; while cruising, hold = slower |
-| Y — double-tap                 | Toggle cruise; while cruising, hold = faster  |
+| X — double-tap                 | Toggle cruise; while cruising, hold = faster  |
+| Y — single-tap                 | Toggle running lights (also auto-on with recording) |
+| Y — double-tap                 | Toggle reverse; while cruising, hold = slower |
 | Both grips + B                 | Open the shutdown-confirm popup (stick to choose, A to select) |
 | Right trigger, left thumbstick | Reserved / unused                       |
 
