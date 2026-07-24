@@ -111,19 +111,20 @@ right_motor = throttle - steer
 
 ---
 
-## Track D — HUD: Real Battery Telemetry
+## Track D — HUD: Real Battery Telemetry — ✅ SOFTWARE DONE (pending INA219)
 
-**Goal:** Replace the battery HUD placeholder ("BATTERY --%") with a real reading.
+> Shipped: `battery_control.py` reads an **INA219** (voltage + current over I2C)
+> and estimates charge % from a LiPo curve (`percent_from_voltage()`, pure +
+> unit-tested; `BATTERY_CELLS` sets the series count). `/telemetry` now carries
+> `battery_voltage / current_ma / percent / cells / warn_pct`, and the HUD BAT
+> column shows `BAT <V>` + a color-coded `<pct>%` (white / orange ≤warn / red
+> ≤10%). Full no-op without the sensor (shows `--%`). **Remaining is hardware:**
+> wire the INA219 per `HARDWARE.md` and `pip3 install pi-ina219`. Chose the
+> INA219 over a bare voltage divider because it gives current too (feeds J.5).
 
-**Independent of:** Everything else.
-
-**Blocked on:** A voltage divider circuit wired from the LiPo to a Pi ADC-capable input. The Pi has no native ADC — this needs either an external ADC chip (e.g. ADS1115 over I2C, commonly available) or a simple voltage divider into a GPIO with some other read method. Needs hardware decision before software work here is meaningful.
-
-**What to do once hardware exists:**
-1. Add a `/telemetry` field for `battery_voltage` and `battery_percent` (percent requires knowing your LiPo's full/empty voltage curve — 2S LiPo is roughly 8.4V full, 6.4V empty as a rough linear approximation, though real LiPo discharge curves aren't linear).
-2. Update `drawHud()` in `webxr_viewer.html` to render the real value instead of the ghosted placeholder — the drawing code and layout position are already built, just swap the static string for the live value.
-
-**Files touched:** `webrtc_stream.py` (`/telemetry` route), `webxr_viewer.html` (`drawHud` battery section).
+**Original plan (for reference):**
+1. Add a `/telemetry` field for `battery_voltage` and `battery_percent`.
+2. Update `drawHud()` to render the real value instead of the ghosted placeholder.
 
 ---
 
@@ -243,18 +244,13 @@ right_motor = throttle - steer
 
 **Files touched:** `webrtc_stream.py` (new sensor poll + auto-record logic).
 
-### I.3 — Real Battery Telemetry via INA219
+### I.3 — Real Battery Telemetry via INA219 — ✅ SOFTWARE DONE (pending sensor)
 
-**Goal:** Replace the `BATTERY --%` placeholder with a real reading, and get current draw as a bonus.
-
-**Hardware:** INA219 breakout board (~$5-8, I2C: SDA/SCL/VCC/GND). One chip gives both voltage and current draw — the current reading doubles as basic motor health monitoring (a sudden spike suggests something's binding or stalled).
-
-**Software:**
-1. Add `battery_voltage`, `battery_percent`, and `current_draw_a` fields to `/telemetry`.
-2. Percent-from-voltage: rough linear approximation is fine to start (2S LiPo: ~8.4V full, ~6.4V empty), though real LiPo discharge curves aren't linear — don't over-engineer this initially.
-3. Update `drawHud()` in `webxr_viewer.html` to render the real value — the layout position for battery already exists, just swap the ghosted placeholder for live data.
-
-**Files touched:** `webrtc_stream.py`, `webxr_viewer.html`.
+> Same work as Track D above — see there. `battery_control.py` reads the INA219
+> (voltage + `current_ma`), estimates SoC from a proper LiPo curve (not a naive
+> linear map), and drives the HUD BAT column + LOW BATTERY / BATTERY CRITICAL
+> alerts. `pip3 install pi-ina219` + wire per `HARDWARE.md` to light it up. The
+> `current_ma` field also gives J.5 (motor current) for free once wired.
 
 ### I.4 — Heading via QMC5883L Magnetometer
 
@@ -322,11 +318,13 @@ Storage-remaining is already shown as a bar. Add a flashing/highlighted "LOW STO
 
 **Files touched:** `webxr_viewer.html` (`drawHud`).
 
-### J.3 — Low-Battery Visual Alert
+### J.3 — Low-Battery Visual Alert — ✅ DONE
 
-Once real battery telemetry exists (Track I.3), don't just show a static percentage — flash the battery readout (or the whole HUD card border) red/amber once it crosses a threshold (~20%). A passive number is easy to zone out on mid-flight; a visual state change isn't.
-
-**Files touched:** `webxr_viewer.html` (`drawHud`), depends on Track I.3 existing first.
+> Shipped: below the top card the HUD flashes an amber **LOW BATTERY** badge once
+> charge drops to `battery_warn_pct` (default 25%, env `BATTERY_WARN_PCT`) and a
+> red **BATTERY CRITICAL** at ≤10%; the BAT % readout also recolors white →
+> orange → red. Badges stack with LOW STORAGE when both are live. Goes live with
+> the INA219 (Track D/I.3); reads null and stays hidden without it.
 
 ### J.4 — In-Water / Beached Badge
 

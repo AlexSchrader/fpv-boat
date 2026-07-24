@@ -28,6 +28,7 @@ A Meta Quest 2 FPV-controlled RC boat. A Raspberry Pi Zero 2 W on the boat strea
   - `/viewer`, `/clips`, `/three.module.js` — serves the client (VR viewer, recordings manager page, Three.js)
   - `/ws/control` — websocket, receives `{throttle, steer, reverse}` from the browser. Stores `latest_control` **and** drives `motor_control.py` (`motors.set_drive`). No-op physically until the L298N is wired, but the software path is complete.
 - **`motor_control.py`** — the differential-thrust L298N motor driver, decoupled from the server so it can be bench-tested standalone (`python3 motor_control.py`). Implements `left = throttle + steer` / `right = throttle - steer` and a **~500 ms watchdog** (zeros the motors if no `set_drive` arrives). Runs as a **no-op if `gpiozero` is unavailable**, so the server works fine on a machine with no GPIO. Pin map lives in `HARDWARE.md`.
+- **`battery_control.py`** — LiPo telemetry from an **INA219** over I2C (`battery.read()` → voltage/current/charge %). `percent_from_voltage()` is a pure, unit-tested function mapping pack voltage → SoC via a LiPo curve (`BATTERY_CELLS` sets the series count). **No-op without the `ina219` lib / sensor** — `read()` returns all-None and the HUD shows `--%`. Surfaced in `/telemetry` (`battery_voltage/current_ma/percent/cells/warn_pct`); the HUD BAT column + flashing LOW BATTERY / BATTERY CRITICAL badges are driven off it.
 - **`webxr_viewer.html`** — the client. Single-file Three.js WebXR app (ES module, no build step). Key things to know:
   - Video and HUD are **separate canvas textures on separate planes**, both head-locked (manually synced to the XR camera every frame via `headLockGroup`, not physically parented).
   - The HUD is drawn with 2D Canvas API calls (`hctx.fillText`, etc.) onto an offscreen canvas, then uploaded as a texture. It is **not** DOM/HTML — the `#debug` div only shows on the flat pre-VR page and is invisible inside an active immersive session. Any in-VR debug output must be drawn onto the HUD canvas.
@@ -60,7 +61,7 @@ Cruise is **client-side**: it holds `cruiseSpeed` as the throttle, X/Y adjust it
 
 **In hand and wired:** Pi Zero 2 W, Arducam Camera Module 3 Wide.
 **In hand, not yet wired:** L298N motor driver, DPDT failsafe switch, MP1584EN buck converters, ShareGoo 8-LED kit, SG90 servos, PG7 glands, IP65 boxes, BrosTrend USB WiFi adapter. **Track B (motor control) is unblocked** — `motor_control.py` is ready to bench-test. **Lights** (`lights_control.py`, auto-on with recording) are ready to bench-test too.
-**Still needed:** PCA9685 (for pan/tilt head-tracking), LiPo battery, INA219 (battery/current sensing). Water sensor not needed — tapping the boat's stock hull sensor.
+**Still needed:** PCA9685 (for pan/tilt head-tracking), LiPo battery, INA219 (battery/current sensing) — **`battery_control.py` is written and ready to wire** (no-op until the INA219 is present; see `HARDWARE.md` for wiring + `pip3 install pi-ina219`). Water sensor not needed — tapping the boat's stock hull sensor.
 
 Don't write code that assumes motor or servo hardware is connected. `motor_control.py` already no-ops safely without `gpiozero`; bench-test any new hardware-facing path with logged output first.
 
