@@ -107,10 +107,9 @@ throttle/shutdown as the last line of defense). Tune the threshold with the
 The same passwordless-`sudo shutdown` rule also powers the **in-headset
 shutdown combo** (both grips + B → confirm popup → `/system/shutdown`), which
 takes the identical safe-poweroff path (stop motors/lights, close any active
-recording, then `sudo shutdown`). One sudoers drop-in covers both. Note the
-client call is currently **stubbed for testing** (confirming Yes just flashes a
-HUD badge) — the endpoint is live, but nothing hits it until the one-line swap
-in `triggerShutdown()` is uncommented.
+recording, then `sudo shutdown`). One sudoers drop-in covers both. The combo is
+**live** — confirming Yes calls `/system/shutdown` and the HUD shows a
+`SHUTTING DOWN…` overlay until the Pi powers off.
 
 ## Running lights (ShareGoo 8-LED kit)
 

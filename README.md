@@ -47,22 +47,16 @@ speed up and hold X to slow down (reverse is locked out). Squeezing the trigger
 past ~50% instantly disengages cruise.
 
 A **headlight telltale** (the car-style lamp-with-rays symbol) sits inside the
-top of the throttle gauge — green when the running lights are on, dimmed when
+top of the throttle gauge — blue when the running lights are on, dimmed when
 off — so you can tell at a glance whether the lights are lit.
 
 **Graceful shutdown:** hold both grips + B to open a confirm popup (defaults to
 **No**); the right stick moves the highlight, A selects, and it auto-cancels
-after 5 s of no input. The intent is to stop the motors/lights, close any
-recording cleanly, and power the Pi down so a hard power cut can't corrupt the
-SD card, with the physical master switch as the true cutoff (flipped only after
-this completes).
-
-> **Testing mode (current):** the client call is intentionally **stubbed** — the
-> `/system/shutdown` endpoint exists on the server, but confirming Yes only logs
-> to the console and flashes a **TEST · SHUTDOWN TRIGGERED** badge on the HUD, so
-> the whole combo → popup → confirm flow can be exercised in-headset without ever
-> powering the Pi down. Going live is a one-line swap in `triggerShutdown()`
-> (`webxr_viewer.html`): uncomment the `fetch('/system/shutdown')` call.
+after 5 s of no input. Confirming **Yes** calls `/system/shutdown`, which stops
+the motors/lights, closes any recording cleanly, and powers the Pi down so a
+hard power cut can't corrupt the SD card — the HUD shows a **SHUTTING DOWN…**
+overlay until the page dies with the Pi. The physical master switch stays the
+true cutoff, flipped only after this completes.
 
 Steering is **differential thrust** (no rudder): `left = throttle + steer`,
 `right = throttle - steer`.
