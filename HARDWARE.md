@@ -168,9 +168,10 @@ unaffected). For accurate current at full throttle, use an INA226 or swap in a
 lower-value shunt and set `BATTERY_SHUNT_OHMS` / `BATTERY_MAX_AMPS`. Voltage —
 the safety-critical number — is fine on the stock board.
 
-Set `BATTERY_CELLS` to your pack's series count (default 3 → 3S) so the
-voltage→charge-% curve is right. Below `BATTERY_WARN_PCT` (default 25%) the HUD
-flashes **LOW BATTERY**; at ≤10% it flashes **BATTERY CRITICAL**.
+`BATTERY_CELLS` defaults to **2** (2S) — set it if your pack differs — so the
+voltage→charge-% curve is right (2S: ~8.4 V full, ~6.5 V empty). Below
+`BATTERY_WARN_PCT` (default 25%) the HUD flashes **LOW BATTERY**; at ≤10% it
+flashes **BATTERY CRITICAL**.
 
 ## Control mapping (from the headset)
 
