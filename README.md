@@ -29,10 +29,10 @@ session):
 - **A — double-tap** — start recording
 - **A — single-tap** — stop recording
 - **X — double-tap** — toggle cruise (holds the current throttle)
-- **X — hold (while cruising)** — speed the cruise set-speed up
+- **X — hold (while cruising)** — slow the cruise set-speed down
 - **Y — single-tap** — toggle running lights (manual; also auto-on with recording)
 - **Y — double-tap** — toggle reverse (inverts throttle direction)
-- **Y — hold (while cruising)** — slow the cruise set-speed down
+- **Y — hold (while cruising)** — speed the cruise set-speed up
 - **Both grips + B** — open the graceful-shutdown confirm popup
 - **Shutdown popup: right stick ← / →** — move highlight between Yes / No
 - **Shutdown popup: A** — select the highlighted option
@@ -42,9 +42,13 @@ Rear **reverse ("backup") lights** — future install — come on automatically
 whenever reverse is engaged; the server drives them off the reverse flag, so
 they have no button of their own.
 
-**Cruise:** double-tap X to lock the current throttle; while cruising, hold X to
-speed up and hold Y to slow down (reverse is locked out). Squeezing the trigger
+**Cruise:** double-tap X to lock the current throttle; while cruising, hold Y to
+speed up and hold X to slow down (reverse is locked out). Squeezing the trigger
 past ~50% instantly disengages cruise.
+
+A **headlight telltale** (the car-style lamp-with-rays symbol) sits inside the
+top of the throttle gauge — green when the running lights are on, dimmed when
+off — so you can tell at a glance whether the lights are lit.
 
 **Graceful shutdown:** hold both grips + B to open a confirm popup (defaults to
 **No**); the right stick moves the highlight, A selects, and it auto-cancels

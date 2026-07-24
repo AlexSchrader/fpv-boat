@@ -45,8 +45,9 @@ Read via `XRSession.inputSources` during the immersive session:
 - **Left trigger** → throttle (0..1)
 - **Right thumbstick X** → steer
 - **A** — double-tap = start recording, single-tap = stop
-- **X** — double-tap toggles **cruise** (throttle hold); while cruising, hold = speed up
-- **Y** — single-tap toggles **lights** (`/lights/toggle`); double-tap toggles **reverse**; while cruising, hold = slow down. (Taps resolve on release so a hold-to-slow never fires an action.)
+- **X** — double-tap toggles **cruise** (throttle hold); while cruising, hold = slow down
+- **Y** — single-tap toggles **lights** (`/lights/toggle`); double-tap toggles **reverse**; while cruising, hold = speed up. (Taps resolve on release so a hold-to-speed never fires an action.)
+- HUD shows a car-style **headlight telltale** inside the top of the throttle gauge (green when `telemetry.lights_on`).
 - Rear **reverse lights** (future install) auto-on in reverse — server-driven off the reverse flag (`lights.reverse()`), no button.
 - **Both grips + B** — opens the graceful-shutdown confirm popup (right stick chooses Yes/No, A selects, auto-cancels after 5 s, defaults to No). Client-side popup state; the boat's drive is frozen while it's open. **Currently in testing mode:** confirming Yes only logs + flashes a `TEST · SHUTDOWN TRIGGERED` HUD badge — the real `fetch('/system/shutdown')` call in `triggerShutdown()` is stubbed behind a comment until the build is complete (one-line swap to go live). The `/system/shutdown` endpoint itself is live and, when called, stops motors/lights, closes any recording, and powers the Pi down via the shared `_safe_poweroff()` path.
 - **Right trigger, left thumbstick** — reserved / unused
