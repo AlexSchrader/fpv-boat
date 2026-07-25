@@ -182,9 +182,29 @@ function sendControl(nowMs) {
       throttle: effThrottle,
       steer: control.steer,
       reverse: control.reverse,
+      yaw: head.yaw,          // head-tracking -> camera pan/tilt (degrees, 0 = neutral)
+      pitch: head.pitch,
       ts: nowMs
     }));
   } catch (e) {}
+}
+
+// ---- head-tracking (camera pan/tilt) ----
+// The camera on the boat follows where the pilot looks. We read the XR head
+// orientation each frame, take yaw/pitch relative to wherever they were looking
+// when they entered VR (captured once as an offset so "forward" = entry heading),
+// and stream degrees to the Pi, which maps them to servo angles.
+const head = { yaw: 0, pitch: 0 };
+let headCentered = false;               // false until the neutral offset is captured
+let headYawOffset = 0, headPitchOffset = 0;
+const _headEuler = new THREE.Euler();
+function updateHead(xrCamera) {
+  _headEuler.setFromQuaternion(xrCamera.quaternion, 'YXZ');  // Y=yaw, X=pitch
+  const yawDeg = THREE.MathUtils.radToDeg(_headEuler.y);
+  const pitchDeg = THREE.MathUtils.radToDeg(_headEuler.x);
+  if (!headCentered) { headYawOffset = yawDeg; headPitchOffset = pitchDeg; headCentered = true; }
+  head.yaw = yawDeg - headYawOffset;
+  head.pitch = pitchDeg - headPitchOffset;
 }
 
 // ---- recording + lights control ----
@@ -201,6 +221,7 @@ function toggleLights()    { fetch('/lights/toggle').catch(() => {}); }
 //   LEFT  button[5] = Y -> single-tap toggles lights / double-tap toggles reverse;
 //                          while cruising, hold = speed UP
 //   BOTH grips (button[1]) + B (right[5]) -> open the shutdown confirm popup
+//   HEAD orientation (yaw/pitch) -> camera pan/tilt servos (see updateHead)
 //   Reserved (ignored): RIGHT trigger, LEFT thumbstick
 // Rear "reverse lights" (future hardware) come on automatically in reverse — the
 // server drives them off the reverse flag, no button of their own.
@@ -819,6 +840,9 @@ renderer.setAnimationLoop(() => {
     const xrCamera = renderer.xr.getCamera(camera);
     headLockGroup.position.copy(xrCamera.position);
     headLockGroup.quaternion.copy(xrCamera.quaternion);
+    updateHead(xrCamera);
+  } else if (headCentered) {
+    head.yaw = 0; head.pitch = 0; headCentered = false;   // not in VR -> camera neutral
   }
   renderer.render(scene, camera);
 });
@@ -831,7 +855,7 @@ document.getElementById('enterVR').addEventListener('click', async () => {
     if (!supported) return;
     const session = await navigator.xr.requestSession('immersive-vr');
     log('session started');
-    session.addEventListener('end', () => log('session ended'));
+    session.addEventListener('end', () => { log('session ended'); headCentered = false; head.yaw = 0; head.pitch = 0; });
     await renderer.xr.setSession(session);
     log('in VR');
   } catch (err) {

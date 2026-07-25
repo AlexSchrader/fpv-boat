@@ -220,6 +220,8 @@ async def telemetry(request):
         "battery_percent": batt["percent"],
         "battery_cells": batt["cells"],
         "battery_warn_pct": battery.warn_pct,
+        "pan_angle": pan_tilt.pan,
+        "tilt_angle": pan_tilt.tilt,
         "recordings_min_free_gb": RECORDINGS_MIN_FREE_GB,
         "wifi_rssi_dbm": _wifi_rssi_dbm(),
         "mem_free_mb": _mem_free_mb(),
@@ -280,7 +282,7 @@ async def three_js(request):
     return web.FileResponse(os.path.expanduser("~/three.module.js"),
                              headers={"Content-Type": "application/javascript"})
 
-latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False}
+latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False, "head_yaw": 0.0, "head_pitch": 0.0}
 
 # Differential-thrust motor driver (L298N). Kept in its own module so it can be
 # bench-tested independently; runs as a no-op if the GPIO libs aren't present, so
@@ -297,6 +299,11 @@ lights = LightController()
 # until the sensor is wired / the ina219 lib is present, so the HUD just shows --%.
 from battery_control import BatteryMonitor
 battery = BatteryMonitor()
+
+# Camera pan/tilt head-tracking via PCA9685 (see pan_tilt_control.py). No-op until
+# the PCA9685 + servos are wired; the viewer streams head yaw/pitch over /ws/control.
+from pan_tilt_control import PanTiltController
+pan_tilt = PanTiltController()
 
 # Thermal safety: if the CPU sustains this temperature, shut the Pi down to
 # protect it. The check needs a few consecutive strikes so a transient spike
@@ -369,15 +376,22 @@ async def control_ws(request):
                 # throttle already carries the reverse sign from the client;
                 # steering is differential, handled inside set_drive()
                 motors.set_drive(latest_control["throttle"], latest_control["steer"])
+                # head-tracking: aim the camera where the pilot looks (no-op until wired)
+                if "yaw" in data or "pitch" in data:
+                    latest_control["head_yaw"] = float(data.get("yaw", 0.0))
+                    latest_control["head_pitch"] = float(data.get("pitch", 0.0))
+                    pan_tilt.set_head(latest_control["head_yaw"], latest_control["head_pitch"])
                 # echo the client timestamp back for control-latency measurement (J.9)
                 ts = data.get("ts")
                 if ts is not None:
                     await ws.send_json({"ack": ts})
             except Exception:
                 pass
-    # stop the motors (and drop reverse lights) if the control link drops
+    # stop the motors (and drop reverse lights) if the control link drops;
+    # recenter the camera so it isn't left cranked to one side
     motors.stop()
     lights.reverse(False)
+    pan_tilt.center()
     return ws
 
 async def control_status(request):

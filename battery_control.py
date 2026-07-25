@@ -25,6 +25,9 @@ BATTERY_CELLS = int(os.environ.get("BATTERY_CELLS", "2"))
 SHUNT_OHMS = float(os.environ.get("BATTERY_SHUNT_OHMS", "0.1"))
 MAX_AMPS = os.environ.get("BATTERY_MAX_AMPS")  # None -> let the library auto-gain
 WARN_PCT = int(os.environ.get("BATTERY_WARN_PCT", "25"))
+# INA219 I2C address. Defaults to 0x40 — note the PCA9685 (pan/tilt) also defaults
+# to 0x40, so if you run both, readdress one (env here or PAN_TILT_I2C_ADDR).
+I2C_ADDR = int(os.environ.get("BATTERY_I2C_ADDR", "0x40"), 0)
 
 # Approximate resting per-cell voltage -> state-of-charge, descending. LiPo
 # discharge is nonlinear, so a straight line over/under-reads badly; this small
@@ -65,9 +68,9 @@ class BatteryMonitor:
         try:
             from ina219 import INA219
             if MAX_AMPS is not None:
-                self._ina = INA219(shunt_ohms, float(MAX_AMPS))
+                self._ina = INA219(shunt_ohms, float(MAX_AMPS), address=I2C_ADDR)
             else:
-                self._ina = INA219(shunt_ohms)
+                self._ina = INA219(shunt_ohms, address=I2C_ADDR)
             self._ina.configure()
             self.hardware = True
         except Exception as e:
