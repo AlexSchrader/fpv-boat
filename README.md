@@ -38,6 +38,11 @@ session):
 - **Shutdown popup: A** — select the highlighted option
 - **Right trigger, left thumbstick** — reserved / unused
 
+**Head-tracking:** the on-boat camera follows where you look — the viewer streams
+your headset's yaw/pitch to the Pi, which aims two servos (pan/tilt) via a
+PCA9685. "Forward" is captured when you enter VR, and the camera recenters when
+you leave or the link drops. See `HARDWARE.md`.
+
 Rear **reverse ("backup") lights** — future install — come on automatically
 whenever reverse is engaged; the server drives them off the reverse flag, so
 they have no button of their own.
@@ -101,6 +106,11 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 | `BATTERY_SHUNT_OHMS` | `0.1` | INA219 shunt resistance |
 | `BATTERY_MAX_AMPS` | _(auto)_ | Expected max current (tunes INA219 gain) |
 | `BATTERY_WARN_PCT` | `25` | Charge % at which the HUD flashes LOW BATTERY (≤10% = CRITICAL) |
+| `BATTERY_I2C_ADDR` | `0x40` | INA219 I2C address (move it if it collides with the PCA9685) |
+| `PAN_CHANNEL` / `TILT_CHANNEL` | `0` / `1` | PCA9685 channels for the pan / tilt servos |
+| `PAN_RANGE_DEG` / `TILT_RANGE_DEG` | `90` / `45` | Head degrees that map to full servo travel |
+| `PAN_SIGN` / `TILT_SIGN` | `1` / `1` | Set to `-1` to flip a servo that tracks backwards |
+| `PAN_TILT_I2C_ADDR` | `0x40` | PCA9685 I2C address (default collides with the INA219 — move one) |
 
 The **stream (lores) is software-encoded by aiortc**, so its resolution is the
 main driver of CPU load/heat — the default is 960×540 to keep temps down.
@@ -138,6 +148,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
 | `lights_control.py` | Front/rear LED lights, GPIO-switched, auto-on with recording (bench-test: `python3 lights_control.py`) |
 | `battery_control.py` | LiPo telemetry via INA219 (voltage/current/charge %); no-op without the sensor (bench-test: `python3 battery_control.py`) |
+| `pan_tilt_control.py` | Camera pan/tilt head-tracking via PCA9685 + 2 servos; no-op without the board (bench-test: `python3 pan_tilt_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `clips.html` | Recordings manager page (served at `/clips`) |
 | `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |

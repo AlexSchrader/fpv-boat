@@ -173,6 +173,40 @@ voltage→charge-% curve is right (2S: ~8.4 V full, ~6.5 V empty). Below
 `BATTERY_WARN_PCT` (default 25%) the HUD flashes **LOW BATTERY**; at ≤10% it
 flashes **BATTERY CRITICAL**.
 
+## Camera pan/tilt head-tracking (PCA9685 + 2× SG90)
+
+The camera follows where the pilot looks: the viewer streams head yaw/pitch over
+the control websocket, and the server maps it to two servo angles. A **PCA9685**
+(16-channel PWM over I2C) drives the servos — the Pi's two hardware-PWM channels
+are already taken by the L298N, and software PWM jitters servos.
+
+| PCA9685 pin | Connect to |
+| ----------- | ---------- |
+| VCC         | Pi 3V3 (pin 1) — logic power |
+| GND         | Pi GND (shared) |
+| SDA         | GPIO2 / pin 3 |
+| SCL         | GPIO3 / pin 5 |
+| V+          | **5 V servo rail from the buck converter** (NOT the Pi 5 V) |
+| Ch 0 signal | Pan servo |
+| Ch 1 signal | Tilt servo |
+
+Servos pull current spikes that can brown out the Pi — power them from the buck
+converter's 5 V rail into the PCA9685 **V+**, with a common ground. Install:
+`pip3 install adafruit-circuitpython-servokit`; bench with
+`python3 pan_tilt_control.py` (sweeps both servos).
+
+⚠️ **I2C address collision:** the PCA9685 **and** the INA219 both default to
+**0x40**. Run both and one won't answer. Fix by moving one: bridge the PCA9685's
+**A0** solder jumper (→ 0x41) and set `PAN_TILT_I2C_ADDR=0x41`, or move the
+INA219 with `BATTERY_I2C_ADDR`. Confirm with `i2cdetect -y 1` (you should see
+two distinct addresses).
+
+Tuning env vars: `PAN_CHANNEL` / `TILT_CHANNEL` (default 0/1), `PAN_RANGE_DEG` /
+`TILT_RANGE_DEG` (head degrees that map to full servo travel, default 90/45), and
+`PAN_SIGN` / `TILT_SIGN` (set to `-1` to flip a servo that tracks backwards).
+Tilt travel is clamped to 45–135° so the camera can't crank into the hull. The
+servo channels are set in `pan_tilt_control.py` — change them there if you rewire.
+
 ## Control mapping (from the headset)
 
 | Input                          | Action                                  |
