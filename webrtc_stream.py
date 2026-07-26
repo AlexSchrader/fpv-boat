@@ -18,6 +18,11 @@ from picamera2.outputs import FileOutput
 RECORDINGS_DIR = os.path.expanduser("~/recordings")
 os.makedirs(RECORDINGS_DIR, exist_ok=True)
 
+# Static client files (viewer/clips/watch/three.js) live next to this script, so
+# serve them relative to it — works no matter where the repo is cloned. (Earlier
+# these hardcoded ~/, which broke once the repo moved out of the home dir.)
+STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Keep at least this many GB free by deleting the oldest recordings before each
 # new one starts. Set RECORDINGS_MIN_FREE_GB=0 to disable auto-cleanup.
 RECORDINGS_MIN_FREE_GB = float(os.environ.get("RECORDINGS_MIN_FREE_GB", "2.0"))
@@ -268,18 +273,18 @@ async def recording_delete(request):
 
 
 async def clips(request):
-    return web.FileResponse(os.path.expanduser("~/clips.html"))
+    return web.FileResponse(os.path.join(STATIC_DIR, "clips.html"))
 
 
 async def watch(request):
-    return web.FileResponse(os.path.expanduser("~/watch.html"))
+    return web.FileResponse(os.path.join(STATIC_DIR, "watch.html"))
 
 
 async def viewer(request):
-    return web.FileResponse(os.path.expanduser("~/webxr_viewer.html"))
+    return web.FileResponse(os.path.join(STATIC_DIR, "webxr_viewer.html"))
 
 async def three_js(request):
-    return web.FileResponse(os.path.expanduser("~/three.module.js"),
+    return web.FileResponse(os.path.join(STATIC_DIR, "three.module.js"),
                              headers={"Content-Type": "application/javascript"})
 
 latest_control = {"throttle": 0.0, "steer": 0.0, "reverse": False, "head_yaw": 0.0, "head_pitch": 0.0}
