@@ -178,15 +178,21 @@ function sendControl(nowMs) {
   // apply reverse on the wire so the Pi stays dumb: forward stick + reverse = astern
   const effThrottle = control.reverse ? -control.throttle : control.throttle;
   try {
-    controlWs.send(JSON.stringify({
+    const msg = {
       throttle: effThrottle,
       steer: control.steer,
       reverse: control.reverse,
-      yaw: head.yaw,          // head-tracking -> camera pan/tilt (degrees, 0 = neutral)
-      pitch: head.pitch,
-      recenter: pendingRecenter,   // one-shot: freeze current camera aim as neutral
       ts: nowMs
-    }));
+    };
+    // Head data ONLY while presenting: a flat desktop/monitoring tab must never
+    // stream head angles, or it fights the headset for the camera (two writers
+    // alternating = servo oscillation).
+    if (renderer.xr.isPresenting) {
+      msg.yaw = head.yaw;         // -> camera pan/tilt (degrees, 0 = neutral)
+      msg.pitch = head.pitch;
+      if (pendingRecenter) msg.recenter = true;   // one-shot: freeze current aim as neutral
+    }
+    controlWs.send(JSON.stringify(msg));
     pendingRecenter = false;
   } catch (e) {}
 }
@@ -204,13 +210,18 @@ let recenterFlashUntil = 0;             // brief "CENTERED" HUD confirmation
 let gripRecenterPrev = false;           // both-grips edge for the recenter combo
 let pendingRecenter = false;            // tell the server to freeze current aim as neutral
 const _headEuler = new THREE.Euler();
+const HEAD_SMOOTH = 0.25;   // EMA factor per frame — enough to kill IMU noise, still responsive
 function updateHead(xrCamera) {
   _headEuler.setFromQuaternion(xrCamera.quaternion, 'YXZ');  // Y=yaw, X=pitch
   headRawYaw = THREE.MathUtils.radToDeg(_headEuler.y);
   headRawPitch = THREE.MathUtils.radToDeg(_headEuler.x);
   if (!headCentered) { headYawOffset = headRawYaw; headPitchOffset = headRawPitch; headCentered = true; }
-  head.yaw = headRawYaw - headYawOffset;
-  head.pitch = headRawPitch - headPitchOffset;
+  // Exponential smoothing: raw headset angles carry ~±0.5° sensor noise which,
+  // sent straight to the servos, makes them oscillate around the target.
+  const targetYaw = headRawYaw - headYawOffset;
+  const targetPitch = headRawPitch - headPitchOffset;
+  head.yaw += (targetYaw - head.yaw) * HEAD_SMOOTH;
+  head.pitch += (targetPitch - head.pitch) * HEAD_SMOOTH;
 }
 // Recenter: make wherever the pilot is looking right now the new neutral. The
 // client zeroes its head offset AND flags the server to freeze the camera's
