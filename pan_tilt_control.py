@@ -59,6 +59,9 @@ TILT_CENTER = float(os.environ.get("TILT_CENTER", "90"))
 # retuning the center doesn't shrink the range).
 PAN_SPAN = float(os.environ.get("PAN_SPAN", "90"))
 TILT_SPAN = float(os.environ.get("TILT_SPAN", "45"))
+# Minimum command change (deg) before a servo is physically re-written — filters
+# the sub-degree noise that makes SG90s oscillate/buzz around a target.
+SERVO_DEADBAND_DEG = float(os.environ.get("SERVO_DEADBAND_DEG", "1.0"))
 
 
 def _clamp(v, lo, hi):
@@ -88,6 +91,8 @@ class PanTiltController:
         self.tilt_center = TILT_CENTER
         self.pan = self.pan_center
         self.tilt = self.tilt_center
+        self._written_pan = None    # last angle actually sent to hardware (deadband)
+        self._written_tilt = None
         self._kit = None
         self.hardware = False
         try:
@@ -116,9 +121,16 @@ class PanTiltController:
         self.tilt = tilt
         if not self.hardware:
             return
+        # Deadband: SG90s oscillate/buzz if fed a stream of sub-degree updates
+        # (sensor noise at 20 Hz). Only touch a servo when its command moved
+        # meaningfully since the last hardware write; big moves pass instantly.
         try:
-            self._kit.servo[PAN_CHANNEL].angle = pan
-            self._kit.servo[TILT_CHANNEL].angle = tilt
+            if self._written_pan is None or abs(pan - self._written_pan) >= SERVO_DEADBAND_DEG:
+                self._kit.servo[PAN_CHANNEL].angle = pan
+                self._written_pan = pan
+            if self._written_tilt is None or abs(tilt - self._written_tilt) >= SERVO_DEADBAND_DEG:
+                self._kit.servo[TILT_CHANNEL].angle = tilt
+                self._written_tilt = tilt
         except Exception:
             pass
 

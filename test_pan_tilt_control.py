@@ -82,6 +82,15 @@ class TestSoftwareMode(unittest.TestCase):
         c.center()
         self.assertEqual((c.pan, c.tilt), (PAN_CENTER, TILT_CENTER))
 
+    def test_tiny_changes_still_tracked(self):
+        # The hardware deadband must never affect the *tracked* angles — telemetry
+        # and recenter() rely on them being exact.
+        c = PanTiltController()
+        c.set_head(0.1, 0.05)
+        pan1, tilt1 = c.pan, c.tilt
+        c.set_head(0.2, 0.1)
+        self.assertNotEqual((c.pan, c.tilt), (pan1, tilt1))
+
     def test_recenter_adopts_current_aim(self):
         c = PanTiltController()
         c.set_head(PAN_RANGE_DEG / 2, TILT_RANGE_DEG / 2)   # aim off the default center
