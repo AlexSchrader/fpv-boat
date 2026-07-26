@@ -128,6 +128,7 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 | `PAN_CHANNEL` / `TILT_CHANNEL` | `0` / `1` | PCA9685 channels for the pan / tilt servos |
 | `PAN_RANGE_DEG` / `TILT_RANGE_DEG` | `90` / `45` | Head degrees that map to full servo travel |
 | `PAN_SIGN` / `TILT_SIGN` | `1` / `1` | Set to `-1` to flip a servo that tracks backwards |
+| `PAN_CENTER` / `TILT_CENTER` | `90` / `90` | Neutral servo angle = camera straight/level (raise/lower to level a mount that sits off-center) |
 | `PAN_TILT_I2C_ADDR` | `0x40` | PCA9685 I2C address (default collides with the INA219 — move one) |
 
 The **stream (lores) is software-encoded by aiortc**, so its resolution is the
