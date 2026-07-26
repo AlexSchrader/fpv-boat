@@ -204,8 +204,11 @@ INA219 with `BATTERY_I2C_ADDR`. Confirm with `i2cdetect -y 1` (you should see
 two distinct addresses).
 
 Tuning env vars: `PAN_CHANNEL` / `TILT_CHANNEL` (default 0/1), `PAN_RANGE_DEG` /
-`TILT_RANGE_DEG` (head degrees that map to full servo travel, default 90/45), and
-`PAN_SIGN` / `TILT_SIGN` (set to `-1` to flip a servo that tracks backwards).
+`TILT_RANGE_DEG` (head degrees that map to full servo travel, default 90/45),
+`PAN_SIGN` / `TILT_SIGN` (set to `-1` to flip a servo that tracks backwards), and
+`PAN_CENTER` / `TILT_CENTER` (neutral servo angle = camera straight/level,
+default 90 — raise/lower if the mount points the camera off-center at 90, e.g.
+`TILT_CENTER=115` to level a camera that aims down).
 Tilt travel is clamped to 45–135° so the camera can't crank into the hull. The
 servo channels are set in `pan_tilt_control.py` — change them there if you rewire.
 
