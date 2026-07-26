@@ -218,6 +218,7 @@ servo channels are set in `pan_tilt_control.py` — change them there if you rew
 | X — double-tap                 | Toggle cruise; while cruising, hold = slower  |
 | Y — single-tap                 | Toggle running lights (also auto-on with recording) |
 | Y — double-tap                 | Toggle reverse; while cruising, hold = faster |
+| Both grips                     | Recenter head-tracking to the current head pose |
 | Both grips + B                 | Open the shutdown-confirm popup (stick to choose, A to select) |
 | Right trigger, left thumbstick | Reserved / unused                       |
 
