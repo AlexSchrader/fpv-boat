@@ -383,6 +383,10 @@ async def control_ws(request):
                 motors.set_drive(latest_control["throttle"], latest_control["steer"])
                 # head-tracking: aim the camera where the pilot looks (no-op until wired)
                 if "yaw" in data or "pitch" in data:
+                    # recenter first (freeze current aim as neutral) so the camera
+                    # holds its position instead of snapping to a fixed angle
+                    if data.get("recenter"):
+                        pan_tilt.recenter()
                     latest_control["head_yaw"] = float(data.get("yaw", 0.0))
                     latest_control["head_pitch"] = float(data.get("pitch", 0.0))
                     pan_tilt.set_head(latest_control["head_yaw"], latest_control["head_pitch"])

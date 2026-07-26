@@ -65,25 +65,29 @@ def _clamp(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
 
 
-def head_to_servo(yaw_deg, pitch_deg):
+def head_to_servo(yaw_deg, pitch_deg, pan_center=PAN_CENTER, tilt_center=TILT_CENTER):
     """Map head yaw/pitch (deg; 0 = looking forward/level) to (pan, tilt) servo angles.
 
     Pure function: head rotation scales from the neutral center by PAN_SPAN/
     TILT_SPAN servo degrees at full PAN_RANGE_DEG/TILT_RANGE_DEG, clamped to the
-    servo's safe travel. Sign env vars flip a servo that tracks the wrong way;
-    the center env vars set where "straight/level" is.
+    servo's safe travel. Sign env vars flip a servo that tracks the wrong way.
+    The center is the servo angle for "straight/level" — it defaults to the env
+    values but the controller moves it at runtime when you recenter.
     """
-    pan = PAN_CENTER + PAN_SIGN * (yaw_deg / PAN_RANGE_DEG) * PAN_SPAN
-    tilt = TILT_CENTER + TILT_SIGN * (pitch_deg / TILT_RANGE_DEG) * TILT_SPAN
+    pan = pan_center + PAN_SIGN * (yaw_deg / PAN_RANGE_DEG) * PAN_SPAN
+    tilt = tilt_center + TILT_SIGN * (pitch_deg / TILT_RANGE_DEG) * TILT_SPAN
     return _clamp(pan, PAN_MIN, PAN_MAX), _clamp(tilt, TILT_MIN, TILT_MAX)
 
 
 class PanTiltController:
-    """set_head(yaw, pitch) / center(); no-op (tracks angles only) without a PCA9685."""
+    """set_head(yaw, pitch) / center() / recenter(); no-op (tracks angles) without a PCA9685."""
 
     def __init__(self):
-        self.pan = PAN_CENTER
-        self.tilt = TILT_CENTER
+        # neutral is mutable so recenter() can adopt the camera's current aim
+        self.pan_center = PAN_CENTER
+        self.tilt_center = TILT_CENTER
+        self.pan = self.pan_center
+        self.tilt = self.tilt_center
         self._kit = None
         self.hardware = False
         try:
@@ -95,11 +99,17 @@ class PanTiltController:
             print(f"[pantilt] hardware disabled ({e}); running in software-only mode")
 
     def set_head(self, yaw_deg, pitch_deg):
-        pan, tilt = head_to_servo(yaw_deg, pitch_deg)
+        pan, tilt = head_to_servo(yaw_deg, pitch_deg, self.pan_center, self.tilt_center)
         self._write(pan, tilt)
 
     def center(self):
-        self._write(PAN_CENTER, TILT_CENTER)
+        self._write(self.pan_center, self.tilt_center)
+
+    def recenter(self):
+        """Freeze the camera's current aim as the new neutral — so 'straight
+        ahead' becomes wherever you've pointed it, instead of a fixed angle."""
+        self.pan_center = self.pan
+        self.tilt_center = self.tilt
 
     def _write(self, pan, tilt):
         self.pan = pan
