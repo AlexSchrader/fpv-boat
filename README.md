@@ -68,10 +68,28 @@ true cutoff, flipped only after this completes.
 Steering is **differential thrust** (no rudder): `left = throttle + steer`,
 `right = throttle - steer`.
 
+## Fresh Pi setup / recovery
+
+On a newly-imaged Pi (or after an SD reflash), clone the repo and run the
+provisioning script — it enables I2C, installs all the system + Python deps,
+generates the TLS cert, and adds the passwordless-shutdown sudoers rule:
+
+```sh
+git clone https://github.com/AlexSchrader/fpv-boat.git ~/fpv-boat && cd ~/fpv-boat
+bash setup.sh
+```
+
+`setup.sh` is idempotent (safe to re-run). Python deps are also in
+`requirements.txt` (`pip3 install --break-system-packages -r requirements.txt`);
+note **picamera2 comes from apt** (`python3-picamera2`), not pip. On Bookworm
+gpiozero uses the **lgpio** pin factory by default — `pigpio` is no longer
+packaged and isn't needed.
+
 ## Running (on the Pi)
 
 ```sh
 # WebXR needs HTTPS — generate a self-signed cert once (VR won't start over plain HTTP)
+# (setup.sh already does this; run it manually only if you skipped setup)
 openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
   -keyout ~/key.pem -out ~/cert.pem -subj "/CN=fpv-boat"
 
@@ -83,12 +101,10 @@ self-signed cert warning, and hit **Enter VR**. (Pi is `FPV-boat`, currently
 `10.0.0.26` — see `NETWORKING.md` for keeping the IP stable and avoiding SSH
 drops.)
 
-For smooth motor PWM once the L298N is wired, run with the pigpio pin factory:
-
-```sh
-sudo apt install -y pigpio && sudo systemctl enable --now pigpiod
-GPIOZERO_PIN_FACTORY=pigpio python3 webrtc_stream.py
-```
+Just run `python3 webrtc_stream.py` — on Bookworm gpiozero uses the **lgpio**
+pin factory automatically, which is fine for the motor/lights PWM. (Don't set
+`GPIOZERO_PIN_FACTORY=pigpio`: `pigpio` isn't packaged on Bookworm, and forcing
+it makes gpiozero fail to init and silently drop motors/lights into no-op.)
 
 The server runs streaming + recording even without the GPIO libs — it just logs
 `hardware disabled` and skips motor output.
