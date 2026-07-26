@@ -57,15 +57,17 @@ just sends a negative throttle. This math lives in `motor_control.py`.
 stalled client stops the boat rather than letting it run away. The server also
 calls `motors.stop()` when the control websocket closes.
 
-## Pulse quality (recommended)
+## Pulse quality
 
-`gpiozero`'s default pin factory uses software PWM, which jitters. For clean
-PWM run the server with the pigpio factory:
+On Raspberry Pi OS **Bookworm**, `gpiozero` uses the **lgpio** pin factory by
+default (installed by `setup.sh` / `pip install lgpio`), which drives the
+motor/lights PWM cleanly — just run `python3 webrtc_stream.py`.
 
-```sh
-sudo pigpiod                                   # start the pigpio daemon once
-GPIOZERO_PIN_FACTORY=pigpio python3 webrtc_stream.py
-```
+**Do not** set `GPIOZERO_PIN_FACTORY=pigpio`: `pigpio` is no longer packaged on
+Bookworm (`apt install pigpio` fails), and forcing that factory makes gpiozero
+raise on init — which drops motors *and* lights into no-op mode (you'll see
+`[motor]/[lights] hardware disabled (No module named 'pigpio')`). If you hit that,
+just launch without the env var.
 
 If the GPIO libraries are missing entirely, `motor_control.py` prints
 `[motor] hardware disabled ...` and the server still runs streaming + recording
