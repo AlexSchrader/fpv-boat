@@ -184,8 +184,10 @@ function sendControl(nowMs) {
       reverse: control.reverse,
       yaw: head.yaw,          // head-tracking -> camera pan/tilt (degrees, 0 = neutral)
       pitch: head.pitch,
+      recenter: pendingRecenter,   // one-shot: freeze current camera aim as neutral
       ts: nowMs
     }));
+    pendingRecenter = false;
   } catch (e) {}
 }
 
@@ -200,6 +202,7 @@ let headYawOffset = 0, headPitchOffset = 0;
 let headRawYaw = 0, headRawPitch = 0;   // latest absolute head angles (pre-offset)
 let recenterFlashUntil = 0;             // brief "CENTERED" HUD confirmation
 let gripRecenterPrev = false;           // both-grips edge for the recenter combo
+let pendingRecenter = false;            // tell the server to freeze current aim as neutral
 const _headEuler = new THREE.Euler();
 function updateHead(xrCamera) {
   _headEuler.setFromQuaternion(xrCamera.quaternion, 'YXZ');  // Y=yaw, X=pitch
@@ -209,12 +212,15 @@ function updateHead(xrCamera) {
   head.yaw = headRawYaw - headYawOffset;
   head.pitch = headRawPitch - headPitchOffset;
 }
-// Recenter: make wherever the pilot is looking right now the new neutral, so the
-// camera points straight ahead. Bound to both grips (see pollControllers).
+// Recenter: make wherever the pilot is looking right now the new neutral. The
+// client zeroes its head offset AND flags the server to freeze the camera's
+// *current* aim as neutral (pendingRecenter) — so the camera holds where you've
+// pointed it instead of snapping to a fixed angle. Bound to both grips.
 function recenterHead() {
   headYawOffset = headRawYaw;
   headPitchOffset = headRawPitch;
   head.yaw = 0; head.pitch = 0;
+  pendingRecenter = true;
   recenterFlashUntil = performance.now() + 1200;
 }
 

@@ -82,6 +82,17 @@ class TestSoftwareMode(unittest.TestCase):
         c.center()
         self.assertEqual((c.pan, c.tilt), (PAN_CENTER, TILT_CENTER))
 
+    def test_recenter_adopts_current_aim(self):
+        c = PanTiltController()
+        c.set_head(PAN_RANGE_DEG / 2, TILT_RANGE_DEG / 2)   # aim off the default center
+        pan_before, tilt_before = c.pan, c.tilt
+        c.recenter()
+        # the current aim becomes the new neutral...
+        self.assertEqual((c.pan_center, c.tilt_center), (pan_before, tilt_before))
+        # ...and looking straight ahead now holds that aim instead of snapping back
+        c.set_head(0, 0)
+        self.assertEqual((c.pan, c.tilt), (pan_before, tilt_before))
+
 
 if __name__ == "__main__":
     unittest.main()

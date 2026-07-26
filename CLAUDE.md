@@ -51,7 +51,7 @@ Read via `XRSession.inputSources` during the immersive session:
 - **Y** — single-tap toggles **lights** (`/lights/toggle`); double-tap toggles **reverse**; while cruising, hold = speed up. (Taps resolve on release so a hold-to-speed never fires an action.)
 - HUD shows a car-style **headlight telltale** inside the top of the throttle gauge (blue/cyan when `telemetry.lights_on`).
 - Rear **reverse lights** (future install) auto-on in reverse — server-driven off the reverse flag (`lights.reverse()`), no button.
-- **Both grips** — recenter head-tracking (`recenterHead()`): makes the current head pose the new neutral so the camera points straight ahead; brief `CAMERA CENTERED` HUD flash. Both grips **+ B** is the shutdown combo (grips-alone is guarded by `!pad.b`).
+- **Both grips** — recenter head-tracking: the client zeroes its head offset (`recenterHead()`) **and** flags the server (`recenter` in the `/ws/control` msg → `pan_tilt.recenter()`) to freeze the camera's *current aim* as the new neutral, so the camera holds position instead of snapping to a fixed angle (aim it level, then squeeze). Brief `CAMERA CENTERED` HUD flash. Both grips **+ B** is the shutdown combo (grips-alone is guarded by `!pad.b`).
 - **Both grips + B** — opens the graceful-shutdown confirm popup (right stick chooses Yes/No, A selects, auto-cancels after 5 s, defaults to No). Client-side popup state; the boat's drive is frozen while it's open. **Live:** confirming Yes calls `/system/shutdown`, which stops motors/lights, closes any recording, and powers the Pi down via the shared `_safe_poweroff()` path; the HUD shows a persistent `SHUTTING DOWN…` overlay until the page dies with the Pi.
 - **Right trigger, left thumbstick** — reserved / unused
 

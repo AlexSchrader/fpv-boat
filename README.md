@@ -33,7 +33,7 @@ session):
 - **Y — single-tap** — toggle running lights (manual; also auto-on with recording)
 - **Y — double-tap** — toggle reverse (inverts throttle direction)
 - **Y — hold (while cruising)** — speed the cruise set-speed up
-- **Both grips** — recenter head-tracking (makes where you're looking now "straight ahead")
+- **Both grips** — recenter head-tracking: the camera holds its current aim and that becomes "straight ahead" (aim it level first, then squeeze)
 - **Both grips + B** — open the graceful-shutdown confirm popup
 - **Shutdown popup: right stick ← / →** — move highlight between Yes / No
 - **Shutdown popup: A** — select the highlighted option
@@ -41,9 +41,10 @@ session):
 
 **Head-tracking:** the on-boat camera follows where you look — the viewer streams
 your headset's yaw/pitch to the Pi, which aims two servos (pan/tilt) via a
-PCA9685. "Forward" is captured when you enter VR; **squeeze both grips any time to
-recenter** it to your current head pose (a "CAMERA CENTERED" flash confirms). The
-camera also recenters when you leave VR or the link drops. See `HARDWARE.md`.
+PCA9685. **Squeeze both grips to recenter:** the camera *holds its current aim*
+and that becomes the new straight-ahead (a "CAMERA CENTERED" flash confirms). So
+to level a camera whose mount sits off-center, just tilt your head until the feed
+is level, then squeeze both grips — no angle config needed. See `HARDWARE.md`.
 
 Rear **reverse ("backup") lights** — future install — come on automatically
 whenever reverse is engaged; the server drives them off the reverse flag, so
