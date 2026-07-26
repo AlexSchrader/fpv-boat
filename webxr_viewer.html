@@ -197,14 +197,25 @@ function sendControl(nowMs) {
 const head = { yaw: 0, pitch: 0 };
 let headCentered = false;               // false until the neutral offset is captured
 let headYawOffset = 0, headPitchOffset = 0;
+let headRawYaw = 0, headRawPitch = 0;   // latest absolute head angles (pre-offset)
+let recenterFlashUntil = 0;             // brief "CENTERED" HUD confirmation
+let gripRecenterPrev = false;           // both-grips edge for the recenter combo
 const _headEuler = new THREE.Euler();
 function updateHead(xrCamera) {
   _headEuler.setFromQuaternion(xrCamera.quaternion, 'YXZ');  // Y=yaw, X=pitch
-  const yawDeg = THREE.MathUtils.radToDeg(_headEuler.y);
-  const pitchDeg = THREE.MathUtils.radToDeg(_headEuler.x);
-  if (!headCentered) { headYawOffset = yawDeg; headPitchOffset = pitchDeg; headCentered = true; }
-  head.yaw = yawDeg - headYawOffset;
-  head.pitch = pitchDeg - headPitchOffset;
+  headRawYaw = THREE.MathUtils.radToDeg(_headEuler.y);
+  headRawPitch = THREE.MathUtils.radToDeg(_headEuler.x);
+  if (!headCentered) { headYawOffset = headRawYaw; headPitchOffset = headRawPitch; headCentered = true; }
+  head.yaw = headRawYaw - headYawOffset;
+  head.pitch = headRawPitch - headPitchOffset;
+}
+// Recenter: make wherever the pilot is looking right now the new neutral, so the
+// camera points straight ahead. Bound to both grips (see pollControllers).
+function recenterHead() {
+  headYawOffset = headRawYaw;
+  headPitchOffset = headRawPitch;
+  head.yaw = 0; head.pitch = 0;
+  recenterFlashUntil = performance.now() + 1200;
 }
 
 // ---- recording + lights control ----
@@ -220,7 +231,8 @@ function toggleLights()    { fetch('/lights/toggle').catch(() => {}); }
 //   LEFT  button[4] = X -> double-tap toggles cruise; while cruising, hold = speed DOWN
 //   LEFT  button[5] = Y -> single-tap toggles lights / double-tap toggles reverse;
 //                          while cruising, hold = speed UP
-//   BOTH grips (button[1]) + B (right[5]) -> open the shutdown confirm popup
+//   BOTH grips (button[1]) -> recenter head-tracking to the current head pose
+//   BOTH grips + B (right[5]) -> open the shutdown confirm popup
 //   HEAD orientation (yaw/pitch) -> camera pan/tilt servos (see updateHead)
 //   Reserved (ignored): RIGHT trigger, LEFT thumbstick
 // Rear "reverse lights" (future hardware) come on automatically in reverse — the
@@ -356,6 +368,12 @@ function pollControllers(nowMs) {
     aPrev = pad.a; xPrev = pad.x; yPrev = pad.y; trigHighPrev = trig > 0.5;
     return;
   }
+
+  // Both grips (without B) -> recenter head-tracking so where you're looking now
+  // becomes straight-ahead. Both grips + B is the shutdown combo (handled above).
+  const bothGrips = pad.lg && pad.rg && !pad.b;
+  if (bothGrips && !gripRecenterPrev) recenterHead();
+  gripRecenterPrev = bothGrips;
 
   // A: rising edge. Double-tap within window -> start; a lone tap -> stop.
   if (pad.a && !aPrev) {
@@ -788,6 +806,18 @@ function drawHud() {
     hctx.font = '600 16px Rajdhani, sans-serif';
     hctx.fillText('Safe to flip the master switch once the Pi is off.', W/2, H/2 + 28);
     hctx.textAlign = 'left';
+  } else if (performance.now() < recenterFlashUntil) {
+    // brief confirmation that the both-grips recenter fired
+    const label = 'CAMERA CENTERED';
+    hctx.font = '700 20px Orbitron, sans-serif';
+    const bw = hctx.measureText(label).width + 40, bh = 40, bx = W/2 - bw/2, by = H/2 - bh/2;
+    fillRoundRect(bx, by, bw, bh, 9, 'rgba(0,229,255,0.92)');
+    hctx.fillStyle = '#04181c';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText(label, W/2, by + bh/2 + 1);
+    hctx.textBaseline = 'alphabetic';
+    hctx.textAlign = 'left';
   }
 
   hudTexture.needsUpdate = true;
@@ -821,6 +851,7 @@ function hudSignature() {
     linkState, lastPingMs, videoFps, telemetry.armed, telemetry.recordings_min_free_gb,
     ctrlLatency == null ? -1 : Math.round(ctrlLatency),
     shutdownOpen, shutdownSel, shutdownInProgress,
+    performance.now() < recenterFlashUntil,
     telemetry.lights_on, telemetry.reverse_lights_on,
     telemetry.battery_percent, telemetry.battery_voltage, telemetry.battery_warn_pct,
     // flash phases so the failsafe + below-card alert badges blink via the dirty-check
