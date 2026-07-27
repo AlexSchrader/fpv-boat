@@ -26,7 +26,7 @@ import threading
 # on the Pi's hardware-PWM channels (GPIO12/GPIO13) for smooth speed control.
 # IN1..IN4 set each motor's direction. See HARDWARE.md for the full wiring table.
 LEFT_EN, LEFT_IN1, LEFT_IN2 = 12, 5, 6        # physical pins 32, 29, 31
-RIGHT_EN, RIGHT_IN1, RIGHT_IN2 = 13, 20, 21   # physical pins 33, 38, 40
+RIGHT_EN, RIGHT_IN1, RIGHT_IN2 = 13, 16, 20   # physical pins 33, 36, 38 (as wired)
 
 WATCHDOG_S = 0.5   # cut motors if no fresh command arrives within this window
 
