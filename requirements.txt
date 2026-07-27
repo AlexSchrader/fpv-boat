@@ -13,3 +13,6 @@ gpiozero                             # motors + lights GPIO (no-op if absent)
 lgpio                                # gpiozero pin factory on Bookworm (replaces pigpio)
 adafruit-circuitpython-servokit      # PCA9685 pan/tilt servos
 pi-ina219                            # INA219 battery voltage/current
+pyserial                             # GPS UART
+pynmea2                              # GPS NMEA sentence parsing
+smbus2                               # QMC5883P compass over I2C

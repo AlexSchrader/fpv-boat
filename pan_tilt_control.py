@@ -43,7 +43,9 @@ TILT_CHANNEL = int(os.environ.get("TILT_CHANNEL", "1"))
 PAN_RANGE_DEG = float(os.environ.get("PAN_RANGE_DEG", "90"))
 TILT_RANGE_DEG = float(os.environ.get("TILT_RANGE_DEG", "45"))
 PAN_SIGN = 1 if os.environ.get("PAN_SIGN", "1").lstrip("+") != "-1" else -1
-TILT_SIGN = 1 if os.environ.get("TILT_SIGN", "1").lstrip("+") != "-1" else -1
+# Tilt defaults inverted (-1): confirmed on this boat's mount — looking up must
+# tilt the camera up. Set TILT_SIGN=1 if a future mount tracks the other way.
+TILT_SIGN = 1 if os.environ.get("TILT_SIGN", "-1").lstrip("+") != "-1" else -1
 
 # Servo travel limits (degrees, SG90 is 0..180). Tilt is clamped narrower so the
 # camera can't crank into the hull.

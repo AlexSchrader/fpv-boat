@@ -9,9 +9,11 @@ input from the Quest controllers over a websocket to drive the motors.
 
 - **Live FPV video** — WebRTC (`aiortc` + `picamera2`), 1280×720, head-locked
   video plane rendered in immersive VR.
-- **Telemetry HUD** — link quality + ping, recording status, storage, battery
-  (voltage + charge %, via an INA219), and live throttle/steer gauges (with a
-  REV badge and L/R steer markers).
+- **Telemetry HUD** — link quality + ping, GPS fix/satellites, recording status,
+  storage, battery (voltage + charge % via INA219, reserve-floor gauge), compass
+  heading (HDG) + GPS course (COG), **speed (mph)** in the steer gauge, and a
+  live throttle gauge (REV badge, L/R steer markers). Every sensor block carries
+  validity — a dead sensor greys out instead of showing stale numbers.
 - **Simultaneous recording** — H.264 to `~/recordings/`, runs alongside the
   live stream; start/stop from the controller.
 - **Controller input** — Quest controllers read via WebXR `inputSources`;
@@ -124,8 +126,13 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 | `BATTERY_CELLS` | `2` | LiPo cell count in series (sets the voltage→% curve) |
 | `BATTERY_SHUNT_OHMS` | `0.1` | INA219 shunt resistance |
 | `BATTERY_MAX_AMPS` | _(auto)_ | Expected max current (tunes INA219 gain) |
-| `BATTERY_WARN_PCT` | `25` | Charge % at which the HUD flashes LOW BATTERY (≤10% = CRITICAL) |
-| `BATTERY_I2C_ADDR` | `0x40` | INA219 I2C address (move it if it collides with the PCA9685) |
+| `BATTERY_WARN_PCT` / `BATTERY_CRIT_PCT` | `30` / `15` | LOW BATTERY / BATTERY CRITICAL thresholds |
+| `BATTERY_EMPTY_V_PER_CELL` | `3.70` | Reserve floor mapped to 0% ("come home now"; 3.27 = true empty) |
+| `BATTERY_R_INT_OHMS` | `0.04` | Pack internal resistance for sag compensation |
+| `BATTERY_I2C_ADDR` | `0x40` | INA219 I2C address |
+| `GPS_PORT` / `GPS_BAUD` | `/dev/ttyAMA0` / `38400` | GPS serial port |
+| `COMPASS_I2C_ADDR` | `0x2C` | QMC5883P address |
+| `COMPASS_DECLINATION_DEG` | `-9` | Magnetic declination (Raleigh NC; NOAA calculator for yours) |
 | `PAN_CHANNEL` / `TILT_CHANNEL` | `0` / `1` | PCA9685 channels for the pan / tilt servos |
 | `PAN_RANGE_DEG` / `TILT_RANGE_DEG` | `90` / `45` | Head degrees that map to full servo travel |
 | `PAN_SIGN` / `TILT_SIGN` | `1` / `1` | Set to `-1` to flip a servo that tracks backwards |
@@ -169,6 +176,8 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `lights_control.py` | Front/rear LED lights, GPIO-switched, auto-on with recording (bench-test: `python3 lights_control.py`) |
 | `battery_control.py` | LiPo telemetry via INA219 (voltage/current/charge %); no-op without the sensor (bench-test: `python3 battery_control.py`) |
 | `pan_tilt_control.py` | Camera pan/tilt head-tracking via PCA9685 + 2 servos; no-op without the board (bench-test: `python3 pan_tilt_control.py`) |
+| `gps_control.py` | GPS over UART (NMEA, background thread): fix/sats/coords/speed/COG with staleness (bench-test: `python3 gps_control.py`) |
+| `compass_control.py` | QMC5883P compass driver + hard-iron calibration (`python3 compass_control.py calibrate`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `clips.html` | Recordings manager page (served at `/clips`) |
 | `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |
