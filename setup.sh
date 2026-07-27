@@ -19,6 +19,12 @@ echo "[setup] enabling I2C…"
 sudo raspi-config nonint do_i2c 0 \
   || echo "[setup] (couldn't toggle I2C via raspi-config — enable it manually if i2cdetect fails)"
 
+# UART for the GPS: serial port ON, login console OFF (they share the pins).
+echo "[setup] enabling UART for GPS…"
+sudo raspi-config nonint do_serial 2 2>/dev/null \
+  || sudo raspi-config nonint do_serial_hw 0 2>/dev/null \
+  || echo "[setup] (couldn't toggle serial via raspi-config — set Interface->Serial: console No, port Yes)"
+
 # --- 2. System packages ------------------------------------------------------
 # python3-picamera2 comes from apt (it's tied to libcamera; don't pip it).
 # The libav*/opus/vpx dev libs let aiortc + PyAV build cleanly if no wheel exists.
@@ -35,7 +41,8 @@ sudo apt-get install -y \
 # packaged and isn't needed). servokit = pan/tilt, pi-ina219 = battery.
 echo "[setup] pip packages…"
 pip3 install --break-system-packages \
-  aiohttp aiortc gpiozero lgpio adafruit-circuitpython-servokit pi-ina219
+  aiohttp aiortc gpiozero lgpio adafruit-circuitpython-servokit pi-ina219 \
+  pyserial pynmea2 smbus2
 
 # --- 4. TLS cert (WebXR requires HTTPS) --------------------------------------
 if [ ! -f "$HOME/cert.pem" ] || [ ! -f "$HOME/key.pem" ]; then

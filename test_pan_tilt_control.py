@@ -30,20 +30,24 @@ class TestHeadToServo(unittest.TestCase):
         self.assertEqual(pan_neg, PAN_MIN)
 
     def test_beyond_range_clamps(self):
+        # tilt's expected limit depends on TILT_SIGN (defaults inverted for this mount)
+        tilt_hi = TILT_MAX if pt.TILT_SIGN > 0 else TILT_MIN
+        tilt_lo = TILT_MIN if pt.TILT_SIGN > 0 else TILT_MAX
         pan, tilt = head_to_servo(10 * PAN_RANGE_DEG, 10 * TILT_RANGE_DEG)
         self.assertEqual(pan, PAN_MAX)
-        self.assertEqual(tilt, TILT_MAX)
+        self.assertEqual(tilt, tilt_hi)
         pan, tilt = head_to_servo(-10 * PAN_RANGE_DEG, -10 * TILT_RANGE_DEG)
         self.assertEqual(pan, PAN_MIN)
-        self.assertEqual(tilt, TILT_MIN)
+        self.assertEqual(tilt, tilt_lo)
 
     def test_half_yaw_is_halfway(self):
         pan, _ = head_to_servo(PAN_RANGE_DEG / 2, 0)
         self.assertAlmostEqual(pan, PAN_CENTER + (PAN_MAX - PAN_CENTER) / 2)
 
     def test_tilt_maps_independently_of_pan(self):
+        tilt_hi = TILT_MAX if pt.TILT_SIGN > 0 else TILT_MIN
         _, tilt = head_to_servo(PAN_RANGE_DEG, TILT_RANGE_DEG)
-        self.assertEqual(tilt, TILT_MAX)      # pan at limit doesn't disturb tilt
+        self.assertEqual(tilt, tilt_hi)       # pan at limit doesn't disturb tilt
 
     def test_output_always_within_servo_limits(self):
         for yaw in (-200, -90, -30, 0, 30, 90, 200):

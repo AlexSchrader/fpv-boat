@@ -170,10 +170,16 @@ unaffected). For accurate current at full throttle, use an INA226 or swap in a
 lower-value shunt and set `BATTERY_SHUNT_OHMS` / `BATTERY_MAX_AMPS`. Voltage —
 the safety-critical number — is fine on the stock board.
 
-`BATTERY_CELLS` defaults to **2** (2S) — set it if your pack differs — so the
-voltage→charge-% curve is right (2S: ~8.4 V full, ~6.5 V empty). Below
-`BATTERY_WARN_PCT` (default 25%) the HUD flashes **LOW BATTERY**; at ≤10% it
-flashes **BATTERY CRITICAL**.
+`BATTERY_CELLS` defaults to **2** (2S). The gauge's **0% is a reserve floor**
+(3.70 V/cell, `BATTERY_EMPTY_V_PER_CELL`) — hitting 0 means *come home now*,
+not stranded; the true-empty curve is available by setting the floor to 3.27.
+Voltage is EMA-smoothed and sag-compensated (`BATTERY_R_INT_OHMS`, default
+0.04 Ω for 2S — calibrate by comparing idle vs loaded readings), and the shown
+percent never climbs mid-run. Below `BATTERY_WARN_PCT` (default 30%) the HUD
+flashes **LOW BATTERY**; at ≤`BATTERY_CRIT_PCT` (15%) **BATTERY CRITICAL**; and
+if the sensor dies mid-session, **BAT SENSOR LOST** — a dead sensor never
+masquerades as a healthy battery. Current clips at the stock shunt's ~3.2 A
+(motors exceed this): the reading is flagged invalid rather than shown wrong.
 
 ## Camera pan/tilt head-tracking (PCA9685 + 2× SG90)
 
@@ -197,11 +203,12 @@ converter's 5 V rail into the PCA9685 **V+**, with a common ground. Install:
 `pip3 install adafruit-circuitpython-servokit`; bench with
 `python3 pan_tilt_control.py` (sweeps both servos).
 
-⚠️ **I2C address collision:** the PCA9685 **and** the INA219 both default to
-**0x40**. Run both and one won't answer. Fix by moving one: bridge the PCA9685's
-**A0** solder jumper (→ 0x41) and set `PAN_TILT_I2C_ADDR=0x41`, or move the
-INA219 with `BATTERY_I2C_ADDR`. Confirm with `i2cdetect -y 1` (you should see
-two distinct addresses).
+⚠️ **I2C address collision (bite us once already):** the PCA9685 **and** the
+INA219 both default to **0x40**. With both wired they fight the bus — the INA219
+read back corrupted config because of exactly this. **Fix: bridge the PCA9685's
+A0 solder pad** (→ 0x41) and launch with `PAN_TILT_I2C_ADDR=0x41` (or export it
+in your shell profile). Do it BEFORE powering both. Confirm with
+`i2cdetect -y 1`: expect `0x40` (INA219), `0x41` (PCA9685), `0x2C` (compass).
 
 Tuning env vars: `PAN_CHANNEL` / `TILT_CHANNEL` (default 0/1), `PAN_RANGE_DEG` /
 `TILT_RANGE_DEG` (head degrees that map to full servo travel, default 90/45),
@@ -211,6 +218,43 @@ default 90 — raise/lower if the mount points the camera off-center at 90, e.g.
 `TILT_CENTER=115` to level a camera that aims down).
 Tilt travel is clamped to 45–135° so the camera can't crank into the hull. The
 servo channels are set in `pan_tilt_control.py` — change them there if you rewire.
+
+## GPS (u-blox M10-25Q, UART)
+
+| GPS pin | Connect to |
+| ------- | ---------- |
+| VCC     | Pi 3V3 (pin 17) |
+| GND     | shared ground |
+| TX      | Pi pin 10 (GPIO15 / RXD) |
+| RX      | Pi pin 8 (GPIO14 / TXD) |
+
+The Pi's serial port must be ON with the login console OFF (`raspi-config` →
+Interface → Serial: console **No**, port **Yes**) — `setup.sh` attempts this.
+`gps_control.py` reads NMEA at 38400 baud on `/dev/ttyAMA0` (override with
+`GPS_PORT`/`GPS_BAUD`) in a background thread. Telemetry exposes fix/sats/HDOP/
+lat/lon/speed/COG with hard validity: **no fix or >3 s stale = the block reads
+invalid** — coordinates are never shown as 0.000000, and the HUD speed shows
+`--` rather than a fake 0. Bench: `python3 gps_control.py` near a window.
+
+## Compass (QMC5883P, I2C 0x2C)
+
+The magnetometer on this boat is a **QMC5883P at 0x2C** — a *different chip*
+from the QMC5883L (0x0D) that most tutorials target; generic libraries read
+nothing, which is why `compass_control.py` carries its own driver (chip-ID
+verified at init). Shares the I2C bus (SDA pin 3 / SCL pin 5, VCC 3V3, GND).
+
+**Calibration is required** — motors + buck converter offset the field badly:
+
+```sh
+python3 compass_control.py calibrate   # rotate the boat slowly 360° for 30 s
+```
+
+Offsets persist to `~/.fpv-boat-compass.json`. Until calibrated the HUD flags
+the heading `UNCAL`. Set `COMPASS_DECLINATION_DEG` for your location (default
+−9°, Raleigh NC). Mount the sensor as far from the drive motors/ESC wiring as
+the hull allows — heading error scales with throttle. The heading is tilt-naive
+(accurate near level); the HUD shows it as **HDG**, distinct from GPS **COG**
+(direction of travel) — they differ whenever wind/current pushes the boat.
 
 ## Control mapping (from the headset)
 

@@ -209,6 +209,16 @@ async def telemetry(request):
     total, used, free = shutil.disk_usage(RECORDINGS_DIR)
     load1, load_frac = _cpu_load()
     batt = battery.read()
+    gps_data = gps.read()
+    compass_data = compass.read()
+    # Speed comes through an indirection so the source can change (GPS now,
+    # accel-fused later) without touching the HUD — it shows value + source.
+    speed_block = {
+        "value": gps_data["sog_mph"],
+        "unit": "mph",
+        "source": "gps",
+        "valid": gps_data["valid"] and gps_data["sog_mph"] is not None,
+    }
     return web.json_response({
         "recording": recording,
         "file": current_filename,
@@ -225,12 +235,19 @@ async def telemetry(request):
         "battery_percent": batt["percent"],
         "battery_cells": batt["cells"],
         "battery_warn_pct": battery.warn_pct,
+        "battery_crit_pct": battery.crit_pct,
         "pan_angle": pan_tilt.pan,
         "tilt_angle": pan_tilt.tilt,
         "recordings_min_free_gb": RECORDINGS_MIN_FREE_GB,
         "wifi_rssi_dbm": _wifi_rssi_dbm(),
         "mem_free_mb": _mem_free_mb(),
         "rec_elapsed_s": round(time.monotonic() - record_start_ts) if (recording and record_start_ts) else None,
+        # nested validity-aware blocks — each sensor degrades to valid:false on
+        # its own; the HUD never has to guess whether a zero is real
+        "battery": batt,
+        "gps": gps_data,
+        "compass": compass_data,
+        "speed": speed_block,
     })
 
 async def recordings_list(request):
@@ -309,6 +326,14 @@ battery = BatteryMonitor()
 # the PCA9685 + servos are wired; the viewer streams head yaw/pitch over /ws/control.
 from pan_tilt_control import PanTiltController
 pan_tilt = PanTiltController()
+
+# GPS (UART NMEA, background thread) + compass (QMC5883P over I2C). Both no-op
+# without their hardware and report valid=False in telemetry.
+from gps_control import GPSReader
+gps = GPSReader()
+
+from compass_control import Compass
+compass = Compass()
 
 # Thermal safety: if the CPU sustains this temperature, shut the Pi down to
 # protect it. The check needs a few consecutive strikes so a transient spike

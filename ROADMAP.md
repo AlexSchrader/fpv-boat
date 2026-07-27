@@ -252,15 +252,17 @@ right_motor = throttle - steer
 > alerts. `pip3 install pi-ina219` + wire per `HARDWARE.md` to light it up. The
 > `current_ma` field also gives J.5 (motor current) for free once wired.
 
-### I.4 — Heading via QMC5883L Magnetometer
+### I.4 — Heading via Magnetometer — ✅ SOFTWARE DONE (pending calibration)
 
-**Goal:** A real compass heading, since it pairs naturally with the speed/heading placeholders already sketched into the original HUD mockup.
-
-**Hardware:** Search **"GY-271 QMC5883L compass module"** — commonly ~$6-9, I2C interface, can share the Pi's I2C bus alongside the INA219 (different I2C addresses, no conflict).
-
-**Software:**
-1. Add `heading_deg` to `/telemetry`.
-2. HUD: small compass readout or rotating needle graphic — this is a good candidate to finally light up the "HEADING — planned" ghost placeholder that's been sitting dimmed in the HUD since the original mockup.
+> Shipped: the board turned out to be a **QMC5883P at 0x2C** (not the QMC5883L
+> at 0x0D that libraries target — that mismatch is why nothing off-the-shelf
+> read it). `compass_control.py` carries its own chip-ID-verified driver,
+> hard-iron calibration (`python3 compass_control.py calibrate`, persisted),
+> and declination (`COMPASS_DECLINATION_DEG`). `/telemetry` exposes a validity-
+> aware `compass` block; the HUD shows **HDG** between the gauges, distinct
+> from GPS **COG**, with an `UNCAL` flag until calibrated. **Remaining:** run
+> the calibration on the boat, verify against a phone compass at 4 headings,
+> and re-check with motors running (interference budget).
 
 **Files touched:** `webrtc_stream.py`, `webxr_viewer.html`.
 
@@ -344,13 +346,18 @@ Once Track I.1 (lights) exists, show current front-light mode (off/steady/strobe
 
 **Files touched:** `webxr_viewer.html` (`drawHud`), depends on Track I.1.
 
-### J.7 — Speed & Distance-from-Launch (once GPS exists)
+### J.7 — Speed & Distance-from-Launch — ✅ SPEED DONE (distance later)
 
-Once the GPS module is wired in (see the M10-25Q module covering both compass and GPS), two more HUD elements become meaningful:
-- **Speed over ground** — finally lights up the "SPEED — planned" ghost placeholder that's been dimmed in the HUD since the original mockup.
-- **Distance from launch point** — compute from the GPS fix at recording-start vs. current position. Pairs naturally with the link-quality bars: together they answer "how worried should I be right now" at range.
-
-**Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`), depends on GPS wiring (UART, separate from the I2C compass half of the same module).
+> Shipped: `gps_control.py` reads the M10-25Q over UART in a background thread
+> (GGA+RMC, staleness-guarded — NO FIX never renders as 0.000000 or a fake
+> speed). The HUD's steer-gauge center now shows **speed in mph** (replacing
+> the commanded-steer %, which was output, not boat state), the LINK row shows
+> **satellite count / NO FIX**, and COG renders under HDG. `/telemetry` carries
+> validity-aware `gps` + `speed` blocks; `speed` is an indirection so an
+> accel-fused source can replace GPS later without touching the HUD.
+> **Remaining:** distance-from-launch (fix at record-start vs current), and the
+> outdoor bench checks (coords vs known point, cover-antenna → NO FIX, pull
+> UART → block greys within 3 s).
 
 ### J.8 — ARMED / FAILSAFE Watchdog Indicator (priority — safety-relevant) — ✅ DONE
 

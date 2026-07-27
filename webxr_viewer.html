@@ -469,7 +469,9 @@ const LABEL_COLOR = 'rgba(255,255,255,0.4)';
 // revState: undefined = no badge; 'off' = greyed REV; 'on' = neon-orange REV
 // showLR: true = draw L/R markers at the arc ends (steer gauge)
 // cruiseState: undefined = none; 'off' = greyed CRUISE; 'on' = green CRUISE
-function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR, cruiseState) {
+// centerText/subText: override the % readout (e.g. speed in the steer gauge —
+// commanded steer % is output, not boat state; speed is worth the slot)
+function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR, cruiseState, centerText, subText) {
   hctx.beginPath();
   hctx.arc(cx, cy, radius, Math.PI * 0.82, Math.PI * 0.18, false);
   hctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -489,8 +491,14 @@ function drawGauge(cx, cy, radius, value01, ghost, label, revState, showLR, crui
   hctx.textAlign = 'center';
   hctx.font = '700 26px Orbitron, sans-serif';
   hctx.fillStyle = ghost ? GHOST : CYAN;
-  const pctText = ghost ? '--%' : Math.round(value01*100) + '%';
-  hctx.fillText(pctText, cx, cy - 6);
+  const mainText = centerText !== undefined ? centerText
+    : (ghost ? '--%' : Math.round(value01*100) + '%');
+  hctx.fillText(mainText, cx, cy - 6);
+  if (subText) {
+    hctx.font = '600 12px Rajdhani, sans-serif';
+    hctx.fillStyle = ghost ? GHOST : LABEL_COLOR;
+    hctx.fillText(subText, cx, cy + 12);
+  }
 
   // CRUISE + REV badges, centered as a row between the % and the label so a
   // widening % can't push them over the arc (throttle gauge only)
@@ -606,6 +614,8 @@ function drawLightTelltale(cx, cy, on) {
   hctx.lineCap = 'butt';
 }
 
+let battSeenValid = false;   // battery reported real data at least once this session
+
 function drawHud() {
   hctx.clearRect(0, 0, hudCanvasEl.width, hudCanvasEl.height);
   hctx.textBaseline = 'alphabetic';
@@ -691,6 +701,15 @@ function drawHud() {
     mkText(rssi != null ? rssi + 'dBm' : '--dBm',
            rssi == null ? LABEL_COLOR : rssi >= -60 ? WHITE : rssi >= -72 ? ORANGE : RED,
            '600 12px Rajdhani, sans-serif'),
+    // GPS: satellite count with a fix, an explicit NO FIX otherwise — a frozen
+    // coordinate that looks live is worse than a blank one
+    (() => {
+      const g = telemetry.gps;
+      if (!g) return mkText('gps --', LABEL_COLOR, '600 12px Rajdhani, sans-serif');
+      if (g.valid && g.fix !== 'none')
+        return mkText((g.sats != null ? g.sats : '?') + 'sat', WHITE, '600 12px Rajdhani, sans-serif');
+      return mkText('NO FIX', ORANGE, '600 12px Rajdhani, sans-serif');
+    })(),
   ];
   const segTotal = segs.reduce((a, s) => a + s.w, 0);
   const segGap = (iR - iL - segTotal) / (segs.length - 1);
@@ -710,12 +729,16 @@ function drawHud() {
   hctx.textAlign = 'left';
   const battPct = telemetry.battery_percent;
   const battV = telemetry.battery_voltage;
-  const battWarn = telemetry.battery_warn_pct != null ? telemetry.battery_warn_pct : 25;
+  const battWarn = telemetry.battery_warn_pct != null ? telemetry.battery_warn_pct : 30;
+  const battCrit = telemetry.battery_crit_pct != null ? telemetry.battery_crit_pct : 15;
   hctx.font = '600 11px Rajdhani, sans-serif'; hctx.fillStyle = LABEL_COLOR;
   hctx.fillText(battV != null ? 'BAT ' + battV.toFixed(1) + 'V' : 'BAT', cx0(0), r2Label);
   hctx.font = '600 15px Orbitron, sans-serif';
-  hctx.fillStyle = battPct == null ? GHOST : battPct <= 10 ? RED : battPct <= battWarn ? ORANGE : WHITE;
+  hctx.fillStyle = battPct == null ? GHOST : battPct <= battCrit ? RED : battPct <= battWarn ? ORANGE : WHITE;
   hctx.fillText(battPct != null ? battPct + '%' : '--%', cx0(0), r2Val);
+  // if the sensor produced data this session and then died, say so loudly —
+  // a dead sensor must never masquerade as a healthy battery
+  if (battV != null) battSeenValid = true;
 
   hctx.fillStyle = telemetry.recording ? RED : 'rgba(255,255,255,0.2)';
   hctx.beginPath(); hctx.arc(cx0(1) + 4, r2Label - 4, 4, 0, Math.PI * 2); hctx.fill();
@@ -746,10 +769,12 @@ function drawHud() {
 
   // ---- below-card alerts (flash; stack vertically when more than one is live) ----
   const alerts = [];
-  if (battPct != null && battPct <= 10)
+  if (battPct != null && battPct <= battCrit)
     alerts.push({ label: 'BATTERY CRITICAL', bg: 'rgba(255,43,43,0.95)', fg: '#ffffff' });
   else if (battPct != null && battPct <= battWarn)
     alerts.push({ label: 'LOW BATTERY', bg: 'rgba(255,122,26,0.94)', fg: '#1a1204' });
+  if (battSeenValid && battV == null)
+    alerts.push({ label: 'BAT SENSOR LOST', bg: 'rgba(255,43,43,0.95)', fg: '#ffffff' });
   const freeGb = telemetry.storage_free_gb, floorGb = telemetry.recordings_min_free_gb;
   if (freeGb != null && floorGb != null && floorGb > 0 && freeGb < floorGb)
     alerts.push({ label: 'LOW STORAGE', bg: 'rgba(255,122,26,0.94)', fg: '#1a1204' });
@@ -774,10 +799,35 @@ function drawHud() {
   drawGauge(W/2 - 120, gaugeY, 70, Math.min(1, Math.abs(control.throttle)), ghostCtl,
             'THROTTLE', (control.reverse && !control.cruise) ? 'on' : 'off',
             false, control.cruise ? 'on' : 'off');
-  drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl, 'STEER', undefined, true);
+  // Steer gauge arc still shows commanded steer, but the center readout is
+  // SPEED (GPS-fed; '--' with no fix — never a fake 0.0). Steer % was output,
+  // not boat state; speed earns the slot.
+  const spd = telemetry.speed;
+  const spdTxt = (spd && spd.valid && spd.value != null) ? spd.value.toFixed(1) : '--';
+  drawGauge(W/2 + 120, gaugeY, 70, (Math.max(-1, Math.min(1, control.steer)) + 1) / 2, ghostCtl,
+            'STEER', undefined, true, undefined, spdTxt, 'mph');
 
-  // headlight telltale inside the top of the throttle gauge (green when lit)
+  // headlight telltale inside the top of the throttle gauge (blue when lit)
   drawLightTelltale(W/2 - 120 - 8, gaugeY - 42, telemetry.lights_on === true);
+
+  // HDG (compass — where the bow points) + COG (GPS — direction of travel),
+  // centered between the gauges. Deliberately separate: they differ whenever
+  // wind/current pushes the boat sideways.
+  const cmp = telemetry.compass;
+  const gpsB = telemetry.gps;
+  hctx.textAlign = 'center';
+  hctx.font = '700 16px Orbitron, sans-serif';
+  hctx.fillStyle = (cmp && cmp.valid && cmp.heading != null) ? WHITE : GHOST;
+  hctx.fillText('HDG ' + ((cmp && cmp.valid && cmp.heading != null) ? Math.round(cmp.heading) + '°' : '--'), W/2, gaugeY - 8);
+  hctx.font = '600 12px Rajdhani, sans-serif';
+  hctx.fillStyle = (gpsB && gpsB.valid && gpsB.cog != null) ? LABEL_COLOR : GHOST;
+  hctx.fillText('COG ' + ((gpsB && gpsB.valid && gpsB.cog != null) ? Math.round(gpsB.cog) + '°' : '--'), W/2, gaugeY + 12);
+  if (cmp && cmp.valid && cmp.calibrated === false) {
+    hctx.fillStyle = ORANGE;
+    hctx.font = '600 10px Rajdhani, sans-serif';
+    hctx.fillText('UNCAL', W/2, gaugeY + 28);
+  }
+  hctx.textAlign = 'left';
 
   // ---- shutdown confirm popup (both grips + B) ----
   if (shutdownOpen) {
@@ -871,6 +921,12 @@ function hudSignature() {
     performance.now() < recenterFlashUntil,
     telemetry.lights_on, telemetry.reverse_lights_on,
     telemetry.battery_percent, telemetry.battery_voltage, telemetry.battery_warn_pct,
+    telemetry.battery_crit_pct, battSeenValid,
+    telemetry.speed ? telemetry.speed.value + '|' + telemetry.speed.valid : '',
+    telemetry.gps ? telemetry.gps.fix + '|' + telemetry.gps.sats + '|' + telemetry.gps.valid
+      + '|' + (telemetry.gps.cog == null ? '' : Math.round(telemetry.gps.cog)) : '',
+    telemetry.compass ? (telemetry.compass.heading == null ? '' : Math.round(telemetry.compass.heading))
+      + '|' + telemetry.compass.valid + '|' + telemetry.compass.calibrated : '',
     // flash phases so the failsafe + below-card alert badges blink via the dirty-check
     telemetry.armed === false ? Math.floor(performance.now() / 350) % 2 : 0,
     (belowCardAlertActive() ? Math.floor(performance.now() / 450) % 2 : 0)
