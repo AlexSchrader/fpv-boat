@@ -11,8 +11,8 @@ thrust, no rudder / no steering servo).
 | Left motor direction     | IN1       | GPIO5  | **29**       |
 | Left motor direction     | IN2       | GPIO6  | **31**       |
 | Right motor speed (PWM)  | ENB       | GPIO13 | **33** (PWM1) |
-| Right motor direction    | IN3       | GPIO20 | **38**       |
-| Right motor direction    | IN4       | GPIO21 | **40**       |
+| Right motor direction    | IN3       | GPIO16 | **36**       |
+| Right motor direction    | IN4       | GPIO20 | **38**       |
 | Common ground            | GND       | GND    | **34** (and 39) |
 
 Motor outputs: **OUT1/OUT2 → left motor**, **OUT3/OUT4 → right motor**. If a
