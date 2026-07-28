@@ -256,6 +256,23 @@ the hull allows — heading error scales with throttle. The heading is tilt-naiv
 (accurate near level); the HUD shows it as **HDG**, distinct from GPS **COG**
 (direction of travel) — they differ whenever wind/current pushes the boat.
 
+## IMU (GY-521 / MPU-6050, I2C 0x68)
+
+Accelerometer + gyro on the shared I2C bus: VCC → 3V3, GND → common ground,
+SDA → pin 3, SCL → pin 5 (piggyback the compass's wires). Leave AD0/INT/XDA/XCL
+unconnected (AD0 low = address **0x68**; `IMU_I2C_ADDR=0x69` if tied high).
+
+`imu_control.py` samples at 50 Hz in a background thread and provides smoothed
+**pitch/roll**, which the server feeds into the compass for a
+**tilt-compensated HDG** — the heading holds steady while the hull pitches in
+chop instead of wandering. `/telemetry` exposes an `imu` block
+(pitch/roll/accel/gyro/temp, validity-aware). Bench: `python3 imu_control.py`
+and tilt the board — pitch/roll should follow.
+
+Mount the GY-521 with its **X axis pointing forward** (bow) and Y to starboard,
+axes aligned with the compass — if a bench check against a phone compass shows
+mirrored/offset behavior, the sign notes in `tilt_compensated_heading()` cover it.
+
 ## Control mapping (from the headset)
 
 | Input                          | Action                                  |

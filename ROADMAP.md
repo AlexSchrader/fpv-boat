@@ -415,9 +415,15 @@ Mostly useful for debugging a crash after the fact rather than something the pil
 
 **Files touched:** `webrtc_stream.py` (`/telemetry`), `webxr_viewer.html` (`drawHud`). *(Software-only — doable now.)*
 
-### Noted for later — Gyro / IMU (not free, requires a purchase)
+### Gyro / IMU — ✅ SOFTWARE DONE (GY-521 / MPU-6050 in hand)
 
-A gyro/IMU (e.g. MPU6050, ~$3-5) would enable a genuinely useful boat orientation/tilt indicator — detecting a capsize or a bad-angle wave hit — but unlike everything else in this track, it requires buying a small sensor rather than just software. Not blocking anything; worth keeping on the radar for a future hardware order rather than treating as a free HUD addition.
+> Shipped: `imu_control.py` reads the MPU-6050 at 0x68 (WHO_AM_I-verified, wakes
+> the chip from its power-on sleep) in a 50 Hz thread, producing EMA-smoothed
+> pitch/roll. The server feeds them into `compass.read(tilt=…)` so **HDG is
+> tilt-compensated** — steady in chop instead of wandering (the brief's noted
+> follow-on). `/telemetry` carries a validity-aware `imu` block. **Future:**
+> capsize badge off sustained |roll|>90°, GPS+accel speed fusion (the `speed`
+> block's indirection is ready for it), and an artificial-horizon HUD element.
 
 ---
 
