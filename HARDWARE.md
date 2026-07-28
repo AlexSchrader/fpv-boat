@@ -115,27 +115,27 @@ recording, then `sudo shutdown`). One sudoers drop-in covers both. The combo is
 
 ## Running lights (ShareGoo 8-LED kit)
 
-Two LED groups (4 white front, 4 red rear), each switched by its own NPN
-transistor — GPIO can't safely source the LEDs' combined current, so it just
-drives the transistor base. **Lights auto-turn-on with recording** (on at
-`/record/start`, off at `/record/stop` and on thermal shutdown) **and can be
-toggled manually** (single-tap Y → `/lights/toggle`); both groups switch
-together. Code: `lights_control.py` (`python3 lights_control.py` to bench-blink).
-No-op without `gpiozero`.
+As built, **all running lights (white front + red rear) are ONE group on a
+single transistor/GPIO** — they switch together. GPIO can't safely source the
+LEDs' combined current, so the pin just drives the transistor base. **Lights
+auto-turn-on with recording** (on at `/record/start`, off at `/record/stop` and
+on thermal shutdown) **and can be toggled manually** (single-tap Y →
+`/lights/toggle`). Code: `lights_control.py` (`python3 lights_control.py`
+bench-blinks both channels). No-op without `gpiozero`.
 
-A third channel drives rear **reverse ("backup") lights** that come on
+A second channel drives the **reverse ("backup") lights**, which come on
 automatically whenever the boat is in reverse (the server calls
-`lights.reverse()` off the control websocket's reverse flag). These LEDs aren't
-installed yet — the pin is already claimed so wiring is drop-in, and it stays a
-no-op until then. Wire it like the other groups (GPIO → 1k → transistor base).
+`lights.reverse()` off the control websocket's reverse flag) — no button. Wire
+it like the running group (GPIO → 1k → transistor base).
 
-| Function          | BCM    | Physical pin |
-| ----------------- | ------ | ------------ |
-| White front group | GPIO17 | **11**       |
-| Red rear group    | GPIO27 | **13**       |
-| Reverse lights    | GPIO22 | **15** (future install) |
+| Function                      | BCM    | Physical pin |
+| ----------------------------- | ------ | ------------ |
+| Running lights (front + rear) | GPIO17 | **11**       |
+| Reverse lights                | GPIO22 | **15**       |
 
-Per group:
+GPIO27 / pin 13 is unused (free for future use).
+
+Per channel:
 ```
 GPIO pin --[1k]--> transistor base
 transistor collector <-- LED group negative
@@ -143,7 +143,7 @@ transistor emitter ----> GND (shared with Pi / buck converter)
 LED group positive -----> 5V rail (buck converter output)
 ```
 
-Change the pins in `lights_control.py` (`FRONT_PIN` / `REAR_PIN`) if you rewire.
+Change the pins in `lights_control.py` (`RUNNING_PIN` / `REVERSE_PIN`) if you rewire.
 
 ## Battery telemetry (INA219)
 

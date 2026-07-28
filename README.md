@@ -173,7 +173,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | ---- | ------- |
 | `webrtc_stream.py` | Main server: WebRTC video, recording, telemetry, control websocket, optional HTTPS |
 | `motor_control.py` | L298N differential-thrust driver with a 0.5 s safety watchdog (bench-test: `python3 motor_control.py`) |
-| `lights_control.py` | Front/rear LED lights, GPIO-switched, auto-on with recording (bench-test: `python3 lights_control.py`) |
+| `lights_control.py` | Running lights (one group) + reverse lights (own group), GPIO-switched (bench-test: `python3 lights_control.py`) |
 | `battery_control.py` | LiPo telemetry via INA219 (voltage/current/charge %); no-op without the sensor (bench-test: `python3 battery_control.py`) |
 | `pan_tilt_control.py` | Camera pan/tilt head-tracking via PCA9685 + 2 servos; no-op without the board (bench-test: `python3 pan_tilt_control.py`) |
 | `gps_control.py` | GPS over UART (NMEA, background thread): fix/sats/coords/speed/COG with staleness (bench-test: `python3 gps_control.py`) |
