@@ -8,7 +8,9 @@ Run: python -m unittest test_compass_control
 
 import unittest
 
-from compass_control import heading_from, apply_hard_iron, Compass
+from compass_control import (
+    heading_from, apply_hard_iron, tilt_compensated_heading, Compass,
+)
 
 
 class TestHeadingMath(unittest.TestCase):
@@ -41,6 +43,39 @@ class TestHardIron(unittest.TestCase):
 
     def test_zero_offsets_identity(self):
         self.assertEqual(apply_hard_iron((5, 6, 7), (0, 0, 0)), (5, 6, 7))
+
+
+class TestTiltCompensation(unittest.TestCase):
+    def test_level_matches_naive(self):
+        # zero pitch/roll must reduce exactly to the tilt-naive heading
+        for mx, my in ((1, 0), (0, 1), (-1, 0.5), (0.3, -0.8)):
+            self.assertEqual(
+                tilt_compensated_heading(mx, my, 0.2, 0.0, 0.0, declination=0),
+                heading_from(mx, my, declination=0))
+
+    def test_missing_attitude_falls_back_to_naive(self):
+        self.assertEqual(
+            tilt_compensated_heading(1, 0, 0.2, None, None, declination=0),
+            heading_from(1, 0, declination=0))
+
+    def test_pitch_corrected_heading_stays_put(self):
+        # field pointing along +X (heading 0). Pitch the sensor 30 deg nose-up:
+        # the field measured in sensor frame becomes (cos30*mx, my, -sin30*mx);
+        # compensation must recover ~0 heading instead of drifting.
+        import math
+        p = math.radians(30)
+        mx_s = math.cos(p) * 1.0
+        mz_s = -math.sin(p) * 1.0
+        h = tilt_compensated_heading(mx_s, 0.0, mz_s, 30.0, 0.0, declination=0)
+        self.assertAlmostEqual(h % 360, 0.0, places=1)
+
+    def test_output_range(self):
+        for pitch in (-45, 0, 45):
+            for roll in (-30, 0, 30):
+                h = tilt_compensated_heading(0.6, -0.4, 0.3, pitch, roll, declination=-9)
+                self.assertIsNotNone(h)
+                self.assertGreaterEqual(h, 0)
+                self.assertLess(h, 360)
 
 
 class TestNoHardware(unittest.TestCase):

@@ -133,6 +133,7 @@ Set these before launching `webrtc_stream.py` — defaults keep current behavior
 | `GPS_PORT` / `GPS_BAUD` | `/dev/ttyAMA0` / `38400` | GPS serial port |
 | `COMPASS_I2C_ADDR` | `0x2C` | QMC5883P address |
 | `COMPASS_DECLINATION_DEG` | `-9` | Magnetic declination (Raleigh NC; NOAA calculator for yours) |
+| `IMU_I2C_ADDR` | `0x68` | MPU-6050 address (0x69 if AD0 tied high) |
 | `PAN_CHANNEL` / `TILT_CHANNEL` | `0` / `1` | PCA9685 channels for the pan / tilt servos |
 | `PAN_RANGE_DEG` / `TILT_RANGE_DEG` | `90` / `45` | Head degrees that map to full servo travel |
 | `PAN_SIGN` / `TILT_SIGN` | `1` / `1` | Set to `-1` to flip a servo that tracks backwards |
@@ -178,6 +179,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `pan_tilt_control.py` | Camera pan/tilt head-tracking via PCA9685 + 2 servos; no-op without the board (bench-test: `python3 pan_tilt_control.py`) |
 | `gps_control.py` | GPS over UART (NMEA, background thread): fix/sats/coords/speed/COG with staleness (bench-test: `python3 gps_control.py`) |
 | `compass_control.py` | QMC5883P compass driver + hard-iron calibration (`python3 compass_control.py calibrate`) |
+| `imu_control.py` | MPU-6050 (GY-521) accel/gyro: pitch/roll at 50 Hz, feeds compass tilt compensation (bench-test: `python3 imu_control.py`) |
 | `webxr_viewer.html` | Three.js WebXR viewer + HUD + controller input |
 | `clips.html` | Recordings manager page (served at `/clips`) |
 | `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |

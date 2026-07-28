@@ -210,7 +210,10 @@ async def telemetry(request):
     load1, load_frac = _cpu_load()
     batt = battery.read()
     gps_data = gps.read()
-    compass_data = compass.read()
+    imu_data = imu.read()
+    # tilt-compensate the heading when the IMU has attitude (chop-proof HDG)
+    tilt = (imu_data["pitch"], imu_data["roll"]) if imu_data["valid"] else None
+    compass_data = compass.read(tilt=tilt)
     # Speed comes through an indirection so the source can change (GPS now,
     # accel-fused later) without touching the HUD — it shows value + source.
     speed_block = {
@@ -248,6 +251,7 @@ async def telemetry(request):
         "gps": gps_data,
         "compass": compass_data,
         "speed": speed_block,
+        "imu": imu_data,
     })
 
 async def recordings_list(request):
@@ -334,6 +338,11 @@ gps = GPSReader()
 
 from compass_control import Compass
 compass = Compass()
+
+# IMU (MPU-6050 on a GY-521): pitch/roll for the HUD and for tilt-compensating
+# the compass heading. 50 Hz daemon thread; no-op without the sensor.
+from imu_control import IMU
+imu = IMU()
 
 # Thermal safety: if the CPU sustains this temperature, shut the Pi down to
 # protect it. The check needs a few consecutive strikes so a transient spike

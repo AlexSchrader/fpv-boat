@@ -55,10 +55,34 @@ _CHIP_ID = 0x80
 
 
 def heading_from(x, y, declination=DECLINATION_DEG):
-    """Heading in degrees 0-360 from calibrated X/Y field components."""
+    """Heading in degrees 0-360 from calibrated X/Y field components (tilt-naive)."""
     if x is None or y is None or (x == 0 and y == 0):
         return None
     deg = math.degrees(math.atan2(y, x))
+    return round((deg + declination + 360.0) % 360.0, 1)
+
+
+def tilt_compensated_heading(mx, my, mz, pitch_deg, roll_deg, declination=DECLINATION_DEG):
+    """Heading corrected for boat pitch/roll (from the IMU).
+
+    Rotates the measured field back into the horizontal plane before the atan2,
+    so the heading stays put while the hull pitches in chop. Falls back to the
+    tilt-naive heading when attitude is unavailable. Assumes the compass and IMU
+    axes are mounted aligned (X forward, Y starboard) — flip signs here if a
+    bench check against a phone compass shows mirrored behavior.
+    """
+    if pitch_deg is None or roll_deg is None or mz is None:
+        return heading_from(mx, my, declination)
+    if mx is None or my is None:
+        return None
+    p = math.radians(pitch_deg)
+    r = math.radians(roll_deg)
+    xh = mx * math.cos(p) + mz * math.sin(p)
+    yh = (mx * math.sin(r) * math.sin(p) + my * math.cos(r)
+          - mz * math.sin(r) * math.cos(p))
+    if xh == 0 and yh == 0:
+        return None
+    deg = math.degrees(math.atan2(yh, xh))
     return round((deg + declination + 360.0) % 360.0, 1)
 
 
@@ -104,14 +128,19 @@ class Compass:
             return v - 65536 if v > 32767 else v
         return (s16(data[0], data[1]), s16(data[2], data[3]), s16(data[4], data[5]))
 
-    def read(self):
+    def read(self, tilt=None):
+        """tilt: optional (pitch_deg, roll_deg) from the IMU for tilt compensation."""
         if not self.hardware:
             return {"heading": None, "calibrated": self.calibrated, "valid": False}
         try:
-            x, y, _z = apply_hard_iron(self._read_raw(), self.offsets)
+            x, y, z = apply_hard_iron(self._read_raw(), self.offsets)
         except Exception:
             return {"heading": None, "calibrated": self.calibrated, "valid": False}
-        return {"heading": heading_from(x, y), "calibrated": self.calibrated, "valid": True}
+        if tilt is not None:
+            heading = tilt_compensated_heading(x, y, z, tilt[0], tilt[1])
+        else:
+            heading = heading_from(x, y)
+        return {"heading": heading, "calibrated": self.calibrated, "valid": True}
 
     def calibrate(self, seconds=30):
         """Capture hard-iron offsets: rotate the boat a slow full 360 while this runs."""
