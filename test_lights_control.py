@@ -10,7 +10,7 @@ Run: python -m unittest test_lights_control
 
 import unittest
 
-from lights_control import LightController, FRONT_PIN, REAR_PIN, REVERSE_PIN
+from lights_control import LightController, RUNNING_PIN, REVERSE_PIN
 
 
 class TestSoftwareMode(unittest.TestCase):
@@ -109,17 +109,17 @@ class TestChannelIndependence(unittest.TestCase):
 
 
 class TestPinAssignments(unittest.TestCase):
-    """Guard against accidental pin collisions between the three channels."""
+    """Guard against accidental pin collisions between the channels."""
 
     def test_pins_are_distinct(self):
-        pins = {FRONT_PIN, REAR_PIN, REVERSE_PIN}
-        self.assertEqual(len(pins), 3)
+        pins = {RUNNING_PIN, REVERSE_PIN}
+        self.assertEqual(len(pins), 2)
 
     def test_pins_avoid_motor_pins(self):
-        # L298N uses GPIO 12/13 (PWM) and 5/6/20/21 (direction) per HARDWARE.md;
+        # L298N uses GPIO 12/13 (PWM) and 5/6/16/20 (direction) per HARDWARE.md;
         # the light channels must not land on any of them.
-        motor_pins = {12, 13, 5, 6, 20, 21}
-        for pin in (FRONT_PIN, REAR_PIN, REVERSE_PIN):
+        motor_pins = {12, 13, 5, 6, 16, 20}
+        for pin in (RUNNING_PIN, REVERSE_PIN):
             self.assertNotIn(pin, motor_pins)
 
 
