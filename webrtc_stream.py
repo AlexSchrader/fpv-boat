@@ -211,8 +211,13 @@ async def telemetry(request):
     batt = battery.read()
     gps_data = gps.read()
     imu_data = imu.read()
-    # tilt-compensate the heading when the IMU has attitude (chop-proof HDG)
-    tilt = (imu_data["pitch"], imu_data["roll"]) if imu_data["valid"] else None
+    # tilt-compensate the heading when the IMU has attitude (chop-proof HDG) —
+    # but only for plausible boat angles: a big residual means the mounting
+    # level pose isn't captured yet, and feeding that in would corrupt HDG
+    tilt = None
+    if imu_data["valid"] and imu_data["pitch"] is not None:
+        if abs(imu_data["pitch"]) < 45 and abs(imu_data["roll"]) < 45:
+            tilt = (imu_data["pitch"], imu_data["roll"])
     compass_data = compass.read(tilt=tilt)
     # Speed comes through an indirection so the source can change (GPS now,
     # accel-fused later) without touching the HUD — it shows value + source.

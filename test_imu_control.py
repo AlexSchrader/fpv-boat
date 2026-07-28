@@ -8,7 +8,7 @@ Run: python -m unittest test_imu_control
 
 import unittest
 
-from imu_control import pitch_roll_from_accel, IMU
+from imu_control import pitch_roll_from_accel, apply_level, IMU
 
 
 class TestPitchRoll(unittest.TestCase):
@@ -46,6 +46,24 @@ class TestPitchRoll(unittest.TestCase):
         pitch, roll = pitch_roll_from_accel(None, 0.0, 1.0)
         self.assertIsNone(pitch)
         self.assertIsNone(roll)
+
+
+class TestApplyLevel(unittest.TestCase):
+    def test_mounting_pose_zeroes_out(self):
+        # board mounted at pitch 17.3 / roll 96 (on its side): after level
+        # capture, that exact pose must read as boat-level (0, 0)
+        self.assertEqual(apply_level(17.3, 96.0, (17.3, 96.0)), (0.0, 0.0))
+
+    def test_relative_motion_preserved(self):
+        pitch, roll = apply_level(22.3, 96.0, (17.3, 96.0))
+        self.assertEqual(pitch, 5.0)     # boat pitched 5 deg from its level pose
+        self.assertEqual(roll, 0.0)
+
+    def test_no_level_passthrough(self):
+        self.assertEqual(apply_level(10.0, -3.0, None), (10.0, -3.0))
+
+    def test_none_passthrough(self):
+        self.assertEqual(apply_level(None, None, (1.0, 2.0)), (None, None))
 
 
 class TestNoHardware(unittest.TestCase):
