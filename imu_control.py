@@ -15,6 +15,17 @@ reads zero, which is the classic "wired right, reads nothing" trap.
 Same no-op-if-missing pattern as the other modules: without smbus2 or the
 sensor, read() reports valid=False and nothing raises.
 
+Mounting: the board rarely sits perfectly flat in the hull, so pitch/roll are
+reported relative to a captured "level" pose, not the bare board. Capture it
+once with the boat sitting level:
+
+    python3 imu_control.py level
+
+which stores the current attitude as zero in ~/.fpv-boat-imu.json (survives
+reboots, like the compass calibration). Until captured, raw board angles are
+reported and — if they're large (board on its side) — the server skips compass
+tilt-compensation rather than feeding it garbage.
+
 Config via env vars:
     IMU_I2C_ADDR   (default 0x68; 0x69 if the board's AD0 is tied high)
 
@@ -22,12 +33,14 @@ Bench test: `python3 imu_control.py` prints pitch/roll — tilt the board and
 watch them follow.
 """
 
+import json
 import math
 import os
 import threading
 import time
 
 I2C_ADDR = int(os.environ.get("IMU_I2C_ADDR", "0x68"), 0)
+LEVEL_FILE = os.path.expanduser("~/.fpv-boat-imu.json")
 
 _REG_WHO_AM_I = 0x75
 _REG_PWR_MGMT_1 = 0x6B
@@ -58,6 +71,19 @@ def pitch_roll_from_accel(ax, ay, az):
     return round(pitch, 1), round(roll, 1)
 
 
+def apply_level(pitch, roll, level):
+    """Subtract the captured mounting pose so 'boat level' reads (0, 0).
+
+    level is (pitch0, roll0) or None. First-order correction — fine for the
+    small angles a hull sees; mount the board near-flat for best accuracy.
+    """
+    if pitch is None or roll is None:
+        return pitch, roll
+    if not level:
+        return pitch, roll
+    return round(pitch - level[0], 1), round(roll - level[1], 1)
+
+
 class IMU:
     """read() -> {pitch, roll, accel_g, gyro_dps, temp_c, valid}."""
 
@@ -71,6 +97,8 @@ class IMU:
         self._gyro = (None, None, None)
         self._temp = None
         self._last_ok = 0.0
+        self.level = self._load_level()   # (pitch0, roll0) or None
+        self.leveled = self.level is not None
         try:
             from smbus2 import SMBus
             self._bus = SMBus(1)
@@ -85,6 +113,38 @@ class IMU:
             threading.Thread(target=self._run, daemon=True).start()
         except Exception as e:
             print(f"[imu] disabled ({e}); telemetry will report invalid")
+
+    def _load_level(self):
+        try:
+            with open(LEVEL_FILE) as f:
+                cal = json.load(f)
+            return (float(cal["pitch0"]), float(cal["roll0"]))
+        except Exception:
+            return None
+
+    def capture_level(self, seconds=2.0):
+        """Store the current (averaged) attitude as the boat-level zero pose."""
+        if not self.hardware:
+            print("no sensor — cannot capture level")
+            return False
+        samples = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            with self._lock:
+                if self._pitch is not None:
+                    samples.append((self._pitch, self._roll))
+            time.sleep(0.05)
+        if len(samples) < 10:
+            print("not enough samples — is the thread running?")
+            return False
+        p0 = sum(s[0] for s in samples) / len(samples)
+        r0 = sum(s[1] for s in samples) / len(samples)
+        self.level = (round(p0, 2), round(r0, 2))
+        self.leveled = True
+        with open(LEVEL_FILE, "w") as f:
+            json.dump({"pitch0": self.level[0], "roll0": self.level[1]}, f)
+        print(f"saved level pose pitch0={self.level[0]} roll0={self.level[1]} -> {LEVEL_FILE}")
+        return True
 
     def _sample(self):
         raw = self._bus.read_i2c_block_data(I2C_ADDR, _REG_ACCEL, 14)
@@ -121,13 +181,17 @@ class IMU:
 
     def read(self):
         if not self.hardware:
-            return {"pitch": None, "roll": None, "accel_g": None,
-                    "gyro_dps": None, "temp_c": None, "valid": False}
+            return {"pitch": None, "roll": None, "leveled": self.leveled,
+                    "accel_g": None, "gyro_dps": None, "temp_c": None, "valid": False}
         with self._lock:
             fresh = (time.monotonic() - self._last_ok) < 1.0
+            pitch = round(self._pitch, 1) if (fresh and self._pitch is not None) else None
+            roll = round(self._roll, 1) if (fresh and self._roll is not None) else None
+            pitch, roll = apply_level(pitch, roll, self.level)
             return {
-                "pitch": round(self._pitch, 1) if (fresh and self._pitch is not None) else None,
-                "roll": round(self._roll, 1) if (fresh and self._roll is not None) else None,
+                "pitch": pitch,
+                "roll": roll,
+                "leveled": self.leveled,
                 "accel_g": tuple(round(a, 3) for a in self._accel) if fresh and self._accel[0] is not None else None,
                 "gyro_dps": tuple(round(g, 1) for g in self._gyro) if fresh and self._gyro[0] is not None else None,
                 "temp_c": round(self._temp, 1) if (fresh and self._temp is not None) else None,
@@ -136,10 +200,17 @@ class IMU:
 
 
 if __name__ == "__main__":
+    import sys
+
     imu = IMU()
-    print("hardware:", imu.hardware, "addr:", hex(I2C_ADDR))
-    for _ in range(20):
-        r = imu.read()
-        print(f"  pitch {r['pitch']}  roll {r['roll']}  temp {r['temp_c']}C  valid {r['valid']}")
-        time.sleep(0.5)
+    print("hardware:", imu.hardware, "addr:", hex(I2C_ADDR), "leveled:", imu.leveled)
+    if len(sys.argv) > 1 and sys.argv[1] == "level":
+        print("capturing level pose — keep the boat sitting level/still…")
+        time.sleep(1.0)   # let the EMA settle
+        imu.capture_level()
+    else:
+        for _ in range(20):
+            r = imu.read()
+            print(f"  pitch {r['pitch']}  roll {r['roll']}  temp {r['temp_c']}C  valid {r['valid']}")
+            time.sleep(0.5)
     print("Done.")

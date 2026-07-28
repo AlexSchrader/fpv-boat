@@ -269,9 +269,21 @@ chop instead of wandering. `/telemetry` exposes an `imu` block
 (pitch/roll/accel/gyro/temp, validity-aware). Bench: `python3 imu_control.py`
 and tilt the board — pitch/roll should follow.
 
-Mount the GY-521 with its **X axis pointing forward** (bow) and Y to starboard,
-axes aligned with the compass — if a bench check against a phone compass shows
-mirrored/offset behavior, the sign notes in `tilt_compensated_heading()` cover it.
+Mount the GY-521 with its **X axis pointing forward** (bow) and as close to
+flat as practical, then — with the boat sitting level — capture its mounting
+pose once:
+
+```sh
+python3 imu_control.py level
+```
+
+That stores the current attitude as "boat level" in `~/.fpv-boat-imu.json`
+(like the compass calibration), so pitch/roll read 0/0 at rest regardless of
+how the board sits. Until it's captured, large raw angles are reported and the
+server **skips compass tilt-compensation** (>45° attitude is treated as "level
+pose unknown") rather than corrupting HDG. If a bench check against a phone
+compass shows mirrored behavior while rocking the hull, the sign notes in
+`tilt_compensated_heading()` cover it.
 
 ## Control mapping (from the headset)
 

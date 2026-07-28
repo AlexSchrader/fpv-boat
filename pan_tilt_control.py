@@ -142,14 +142,23 @@ if __name__ == "__main__":
 
     pt = PanTiltController()
     print("hardware:", pt.hardware, "addr:", hex(I2C_ADDR))
-    print("sweeping pan/tilt (Ctrl-C to stop)…")
-    for yaw in (0, -PAN_RANGE_DEG, PAN_RANGE_DEG, 0):
-        pt.set_head(yaw, 0)
-        print(f"  yaw {yaw:+.0f} -> pan {pt.pan:.0f}")
-        time.sleep(0.8)
-    for pitch in (0, -TILT_RANGE_DEG, TILT_RANGE_DEG, 0):
-        pt.set_head(0, pitch)
-        print(f"  pitch {pitch:+.0f} -> tilt {pt.tilt:.0f}")
-        time.sleep(0.8)
+    print("sweep — each direction is labelled and returns to CENTER between moves,")
+    print("so you can verify LEFT/RIGHT/UP/DOWN match the boat (mirrored pan ->")
+    print("set PAN_SIGN=-1; mirrored tilt -> TILT_SIGN=1). Ctrl-C to stop.")
+    steps = [
+        ("CENTER",        0, 0),
+        ("PAN LEFT",     -PAN_RANGE_DEG, 0),
+        ("CENTER",        0, 0),
+        ("PAN RIGHT",     PAN_RANGE_DEG, 0),
+        ("CENTER",        0, 0),
+        ("TILT UP",       0, TILT_RANGE_DEG),
+        ("CENTER",        0, 0),
+        ("TILT DOWN",     0, -TILT_RANGE_DEG),
+        ("CENTER",        0, 0),
+    ]
+    for label, yaw, pitch in steps:
+        pt.set_head(yaw, pitch)
+        print(f"  {label:10s} (yaw {yaw:+4.0f}, pitch {pitch:+4.0f}) -> pan {pt.pan:.0f}, tilt {pt.tilt:.0f}")
+        time.sleep(1.2)
     pt.center()
     print("Done.")
