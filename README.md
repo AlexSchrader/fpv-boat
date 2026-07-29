@@ -185,7 +185,8 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `watch.html` | Flat spectator page — video + telemetry (served at `/watch`) |
 | `three.module.js` | Vendored Three.js (served locally, no CDN) |
 | `HARDWARE.md` | Wiring, power safety, pin map, watchdog notes |
-| `NETWORKING.md` | Keeping the Pi's IP stable + WiFi power-save fix |
+| `setup_ap.sh` | Field AP mode: the Pi broadcasts its own WiFi, headset connects direct (`https://192.168.4.1:5000/viewer`) |
+| `NETWORKING.md` | Field AP mode, keeping the Pi's IP stable, WiFi power-save fix |
 | `ROADMAP.md` | Project tracks and current-state snapshot |
 
 ## Bench-testing the motors
