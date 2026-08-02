@@ -42,6 +42,7 @@ A Meta Quest 2 FPV-controlled RC boat. A Raspberry Pi Zero 2 W on the boat strea
   - The HUD **redraws only when a value changes** (a signature check), not every frame — constant canvas-texture re-upload was churning the GPU and causing dropped-frame black-flashing in VR. Keep this dirty-check.
   - Controller state is read via **`XRSession.inputSources`** (from `renderer.xr.getSession()`), **not** `navigator.getGamepads()` — see Controls below.
 - **`three.module.js`** — vendored Three.js r0.160, served locally. The Quest Browser could not reliably reach the jsdelivr CDN during development; don't reintroduce a CDN dependency.
+- **`boat-telem/`** — the BOAT-TELEM C++17 daemon (Phase 1): one process owning GPS/compass/INA219/MPU-6050 on their own threads, fusing into a 20 Hz `TelemetrySnapshot` broadcast over a hand-rolled WebSocket (`ws://<pi>:8765`) and logged as JSON Lines. **Read-only telemetry — it never drives motors/servos**, and the HUD still uses `/telemetry` (parallel paths by design). Shares the compass/IMU calibration files with the Python stack. Zero external deps; `cmake -B build && cmake --build build`, unit tests via `ctest`. See `boat-telem/README.md` for spec deviations (QMC5883P not M10-mag, real MPU-6050 not a stub, reserve-floor battery curve).
 - **`.github/workflows/ci.yml`** — CI: byte-compiles all `*.py` (syntax only, so no Pi-only deps needed) and `node --check`s the viewer's ES module, on PRs and pushes to `main`. It only validates syntax — camera/GPIO behavior must be tested on the Pi.
 
 ## Controls (current mapping)

@@ -36,3 +36,15 @@ jobs:
           pathlib.Path('viewer.mjs').write_text(js)
           PY
           node --check viewer.mjs
+
+  # BOAT-TELEM C++ daemon: build + unit tests (pure logic, no hardware).
+  boat-telem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S boat-telem -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j2
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure

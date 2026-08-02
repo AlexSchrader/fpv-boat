@@ -186,6 +186,7 @@ STREAM_WIDTH=1280 STREAM_HEIGHT=720 python3 webrtc_stream.py   # sharper, hotter
 | `three.module.js` | Vendored Three.js (served locally, no CDN) |
 | `HARDWARE.md` | Wiring, power safety, pin map, watchdog notes |
 | `setup_ap.sh` | Field AP mode: the Pi broadcasts its own WiFi, headset connects direct (`https://192.168.4.1:5000/viewer`) |
+| `boat-telem/` | C++17 real-time telemetry daemon: fuses all sensors at 20 Hz, WebSocket stream + JSONL session logs (see its README) |
 | `NETWORKING.md` | Field AP mode, keeping the Pi's IP stable, WiFi power-save fix |
 | `ROADMAP.md` | Project tracks and current-state snapshot |
 
